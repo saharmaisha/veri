@@ -1,0 +1,183 @@
+import { getTextProvider, getImageProvider } from '@/lib/providers/registry';
+import { rankByHeuristics, generateMatchReason } from '@/lib/ranking/ranker';
+import { dedupeByUrl } from '@/lib/ranking/deduper';
+import type {
+  NormalizedProduct,
+  BoardSearchScope,
+  PinSearchContext,
+  SearchFilters,
+} from '@/lib/types/products';
+import type {
+  SearchBoardSummary,
+  SearchRun,
+  ProductResult,
+} from '@/lib/types/database';
+
+export interface SearchOrchestrationInput {
+  pinSearches: PinSearchContext[];
+  filters: SearchFilters;
+  userId: string;
+  boardId?: string | null;
+  boardName?: string | null;
+  searchScope?: 'single_pin' | BoardSearchScope;
+}
+
+export interface SearchOrchestrationResult {
+  searchRun: SearchRun;
+  products: ProductResult[];
+  analyses: PinSearchContext['analysis'][];
+  selectedPins: PinSearchContext['pin'][];
+  board: SearchBoardSummary | null;
+}
+
+export async function orchestrateSearch(
+  input: SearchOrchestrationInput
+): Promise<SearchOrchestrationResult> {
+  const {
+    pinSearches,
+    filters,
+    userId,
+    boardId = null,
+    boardName = null,
+    searchScope = 'single_pin',
+  } = input;
+
+  if (pinSearches.length === 0) {
+    throw new Error('No pins selected for search');
+  }
+
+  const textProvider = getTextProvider();
+  const imageProvider = getImageProvider();
+  let combinedProducts: NormalizedProduct[] = [];
+  let totalTextResults = 0;
+  let totalImageResults = 0;
+
+  for (const pinSearch of pinSearches) {
+    const { pin, analysis, imageUrl = pin.image_url } = pinSearch;
+    const queries = [analysis.balanced_query, analysis.broad_query, analysis.specific_query];
+
+    const textRaw = await textProvider.searchByTextQueries({
+      queries,
+      budget_min: filters.budget_min,
+      budget_max: filters.budget_max,
+      excluded_retailers: filters.excluded_retailers,
+      exclude_luxury: filters.exclude_luxury,
+    });
+
+    const textNormalized = textProvider.normalizeProducts(textRaw);
+    totalTextResults += textNormalized.length;
+
+    let imageNormalized: NormalizedProduct[] = [];
+    if (imageUrl) {
+      const imageRaw = await imageProvider.searchByImage({
+        image_url: imageUrl,
+        budget_min: filters.budget_min,
+        budget_max: filters.budget_max,
+      });
+      imageNormalized = imageProvider.normalizeProducts(imageRaw);
+      totalImageResults += imageNormalized.length;
+    }
+
+    const rankingContext = {
+      budget_min: filters.budget_min,
+      budget_max: filters.budget_max,
+      excluded_retailers: filters.excluded_retailers,
+      exclude_luxury: filters.exclude_luxury,
+      mode: filters.mode,
+      analysis_attributes: {
+        category: analysis.category,
+        primary_color: filters.color || analysis.primary_color,
+        silhouette: analysis.silhouette || undefined,
+        sleeve_length: filters.sleeve_preference || analysis.sleeve_length || undefined,
+        length: filters.length || analysis.length || undefined,
+        fit: analysis.fit || undefined,
+        neckline: analysis.neckline || undefined,
+        material_or_texture: analysis.material_or_texture || undefined,
+        strap_type: analysis.strap_type || undefined,
+        style_keywords: analysis.style_keywords,
+      },
+    };
+
+    const rankedProducts = rankByHeuristics(
+      dedupeByUrl([...textNormalized, ...imageNormalized]),
+      rankingContext
+    ).map((product) => ({
+      ...product,
+      board_id: boardId,
+      board_name: boardName,
+      source_pin_id: pin.id,
+      source_pin_title: pin.title,
+      source_pin_image_url: pin.image_url,
+      balanced_query: analysis.balanced_query,
+      match_reason: product.match_reason || generateMatchReason(product, rankingContext),
+    }));
+
+    combinedProducts.push(...rankedProducts);
+  }
+
+  combinedProducts = dedupeByUrl(combinedProducts).sort(
+    (a, b) => (b.match_score || 0) - (a.match_score || 0)
+  );
+
+  const analyses = pinSearches.map((pinSearch) => pinSearch.analysis);
+  const selectedPins = pinSearches.map((pinSearch) => pinSearch.pin);
+
+  // Build search run record
+  const searchRun: SearchRun = {
+    id: `search-${Date.now()}`,
+    analysis_id: analyses[0]?.id || `analysis-${Date.now()}`,
+    user_id: userId,
+    mode: filters.mode,
+    search_scope: searchScope,
+    board_id: boardId,
+    board_name: boardName,
+    selected_pin_ids: selectedPins.map((pin) => pin.id),
+    selected_pin_count: selectedPins.length,
+    budget_min: filters.budget_min || null,
+    budget_max: filters.budget_max || null,
+    excluded_retailers: filters.excluded_retailers,
+    provider_summary: {
+      text_provider: textProvider.name,
+      image_provider: imageProvider.name,
+      text_results: totalTextResults,
+      image_results: totalImageResults,
+      analyzed_pins: selectedPins.length,
+      total_after_dedupe: combinedProducts.length,
+    },
+    created_at: new Date().toISOString(),
+  };
+
+  // Build product result records
+  const products: ProductResult[] = combinedProducts.map((p) => ({
+    id: `product-${p.provider_product_id}`,
+    search_run_id: searchRun.id,
+    user_id: userId,
+    source_provider: p.source_provider,
+    provider_product_id: p.provider_product_id,
+    title: p.title,
+    retailer: p.retailer,
+    price_text: p.price_text,
+    numeric_price: p.numeric_price,
+    currency: p.currency,
+    image_url: p.image_url,
+    product_url: p.product_url,
+    match_reason: p.match_reason,
+    match_score: p.match_score,
+    board_id: p.board_id || null,
+    board_name: p.board_name || null,
+    source_pin_id: p.source_pin_id || null,
+    source_pin_title: p.source_pin_title || null,
+    source_pin_image_url: p.source_pin_image_url || null,
+    balanced_query: p.balanced_query || null,
+    raw_payload: p.raw_payload || null,
+    created_at: new Date().toISOString(),
+  }));
+
+  return {
+    searchRun,
+    products,
+    analyses,
+    selectedPins,
+    board: boardId && boardName ? { id: boardId, name: boardName } : null,
+  };
+}

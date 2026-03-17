@@ -1,0 +1,389 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import type { PixelCrop } from 'react-image-crop';
+import { toast } from 'sonner';
+import { ArrowLeft, Image, RefreshCw, Search, X } from 'lucide-react';
+import { PinCard } from '@/components/pins/PinCard';
+import { PinCropModal } from '@/components/pins/PinCropModal';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { LoadingState } from '@/components/shared/LoadingState';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSwipeStore } from '@/store/swipe-store';
+import type { PinterestBoard, PinterestPin } from '@/lib/types/database';
+
+const ALL_SECTIONS = '__all__';
+
+export default function BoardDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const boardId = params.id as string;
+  const setSearchData = useSwipeStore((state) => state.setSearchData);
+  const [pins, setPins] = useState<PinterestPin[]>([]);
+  const [board, setBoard] = useState<PinterestBoard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [budgetMax, setBudgetMax] = useState('150');
+  const [selectedPinIds, setSelectedPinIds] = useState<Set<string>>(new Set());
+  const [activeSection, setActiveSection] = useState(ALL_SECTIONS);
+
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropModalPin, setCropModalPin] = useState<PinterestPin | null>(null);
+  const [pinCrops, setPinCrops] = useState<Map<string, PixelCrop>>(new Map());
+
+  const fetchPins = async () => {
+    try {
+      const [pinsRes, boardsRes] = await Promise.all([
+        fetch(`/api/pinterest/boards/${boardId}/pins`),
+        fetch('/api/pinterest/boards'),
+      ]);
+      const [pinsData, boardsData] = await Promise.all([pinsRes.json(), boardsRes.json()]);
+      setPins(pinsData.pins || []);
+      const matchedBoard = (boardsData.boards || []).find(
+        (item: PinterestBoard) => item.id === boardId
+      );
+      setBoard(matchedBoard || null);
+    } catch {
+      toast.error('Failed to load pins');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const importPins = async () => {
+    setImporting(true);
+    try {
+      const res = await fetch(`/api/pinterest/boards/${boardId}/pins`, { method: 'POST' });
+      const data = await res.json();
+      setPins(data.pins || []);
+      setSelectedPinIds(new Set());
+
+      if (data.warning?.message) {
+        toast.warning(data.warning.message, {
+          description: 'Saved what was fetched so you can continue testing.',
+        });
+      } else {
+        toast.success(`Imported ${data.pins?.length || 0} pins`);
+      }
+    } catch {
+      toast.error('Failed to import pins');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPins();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardId]);
+
+  const sections = useMemo(() => {
+    const sectionMap = new Map<string, { key: string; name: string; count: number }>();
+
+    for (const pin of pins) {
+      if (!pin.section_key) {
+        continue;
+      }
+
+      const existing = sectionMap.get(pin.section_key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        sectionMap.set(pin.section_key, {
+          key: pin.section_key,
+          name: pin.section_name || 'Untitled section',
+          count: 1,
+        });
+      }
+    }
+
+    return Array.from(sectionMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [pins]);
+
+  useEffect(() => {
+    if (activeSection === ALL_SECTIONS) {
+      return;
+    }
+
+    if (!sections.some((section) => section.key === activeSection)) {
+      setActiveSection(ALL_SECTIONS);
+    }
+  }, [activeSection, sections]);
+
+  const visiblePins = useMemo(() => {
+    if (activeSection === ALL_SECTIONS) {
+      return pins;
+    }
+
+    return pins.filter((pin) => pin.section_key === activeSection);
+  }, [activeSection, pins]);
+
+  const selectedPins = useMemo(
+    () => visiblePins.filter((pin) => selectedPinIds.has(pin.id)),
+    [selectedPinIds, visiblePins]
+  );
+
+  const togglePinSelection = (pinId: string, selected: boolean) => {
+    setSelectedPinIds((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(pinId);
+      } else {
+        next.delete(pinId);
+      }
+      return next;
+    });
+  };
+
+  const handleCropClick = useCallback(
+    (pinId: string) => {
+      const pin = pins.find((value) => value.id === pinId);
+      if (pin) {
+        setCropModalPin(pin);
+        setCropModalOpen(true);
+      }
+    },
+    [pins]
+  );
+
+  const handleCropSave = useCallback(
+    (crop: PixelCrop | null) => {
+      if (!cropModalPin) return;
+
+      setPinCrops((prev) => {
+        const next = new Map(prev);
+        if (crop) {
+          next.set(cropModalPin.id, crop);
+        } else {
+          next.delete(cropModalPin.id);
+        }
+        return next;
+      });
+    },
+    [cropModalPin]
+  );
+
+  const runBoardSearch = async (searchScope: 'all_board' | 'selected_pins') => {
+    const pinsForSearch = searchScope === 'all_board' ? visiblePins : selectedPins;
+    if (pinsForSearch.length === 0) {
+      toast.error('Select at least one pin first.');
+      return;
+    }
+
+    const selectedIdsForSearch = Array.from(selectedPinIds).filter((pinId) =>
+      pinsForSearch.some((pin) => pin.id === pinId)
+    );
+
+    const cropData: Record<string, { x: number; y: number; width: number; height: number }> = {};
+    pinCrops.forEach((crop, pinId) => {
+      cropData[pinId] = {
+        x: crop.x,
+        y: crop.y,
+        width: crop.width,
+        height: crop.height,
+      };
+    });
+
+    setSearching(true);
+    try {
+      const res = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          board_id: boardId,
+          board_name: board?.name,
+          pins: pinsForSearch,
+          selected_pin_ids: selectedIdsForSearch,
+          search_scope: searchScope,
+          budget_max: budgetMax ? parseFloat(budgetMax) : undefined,
+          pin_crops: Object.keys(cropData).length > 0 ? cropData : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.search_run_id && data.products) {
+        setSearchData({
+          searchRun: data.search_run,
+          products: data.products,
+          analyses: data.analyses,
+          selectedPins: data.selected_pins,
+          board: data.board,
+        });
+        router.push(`/results/${data.search_run_id}`);
+      } else {
+        toast.error(data.error || 'Search failed');
+      }
+    } catch {
+      toast.error('Search failed. Please try again.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  if (loading) return <LoadingState />;
+
+  const hasSelection = selectedPins.length > 0;
+  const activeSectionLabel =
+    activeSection === ALL_SECTIONS
+      ? 'All pins'
+      : sections.find((section) => section.key === activeSection)?.name || 'Section';
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <Link href="/boards">
+          <Button variant="ghost" size="icon" className="shrink-0">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight truncate">{board?.name || 'Board'}</h1>
+          <p className="text-sm text-muted-foreground">
+            {visiblePins.length} pin{visiblePins.length === 1 ? '' : 's'}
+            {activeSection !== ALL_SECTIONS && <span> in {activeSectionLabel}</span>}
+            {hasSelection && (
+              <span className="text-foreground font-medium"> &middot; {selectedPins.length} selected</span>
+            )}
+          </p>
+        </div>
+        <Button onClick={importPins} disabled={importing} variant="ghost" size="sm" className="gap-2 shrink-0">
+          <RefreshCw className={`h-3.5 w-3.5 ${importing ? 'animate-spin' : ''}`} />
+          {importing ? 'Syncing...' : 'Re-sync'}
+        </Button>
+      </div>
+
+      {pins.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3 py-4 border-y">
+          {sections.length > 0 && (
+            <div className="w-full">
+              <Tabs
+                value={activeSection}
+                onValueChange={(value) => {
+                  setActiveSection(value);
+                  setSelectedPinIds(new Set());
+                }}
+              >
+                <TabsList variant="line" className="flex-wrap h-auto">
+                  <TabsTrigger value={ALL_SECTIONS}>All ({pins.length})</TabsTrigger>
+                  {sections.map((section) => (
+                    <TabsTrigger key={section.key} value={section.key}>
+                      {section.name} ({section.count})
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="budget" className="text-xs text-muted-foreground">
+              Max budget
+            </Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                $
+              </span>
+              <Input
+                id="budget"
+                type="number"
+                value={budgetMax}
+                onChange={(e) => setBudgetMax(e.target.value)}
+                className="pl-7 w-28 h-9"
+                min={0}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 ml-auto">
+            {hasSelection && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-muted-foreground h-9"
+                onClick={() => setSelectedPinIds(new Set())}
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear
+              </Button>
+            )}
+            {hasSelection ? (
+              <Button
+                onClick={() => runBoardSearch('selected_pins')}
+                disabled={searching}
+                size="sm"
+                className="gap-2 h-9"
+              >
+                <Search className="h-3.5 w-3.5" />
+                {searching
+                  ? 'Searching...'
+                  : `Search ${selectedPins.length} pin${selectedPins.length === 1 ? '' : 's'}`}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => runBoardSearch('all_board')}
+                disabled={searching || visiblePins.length === 0}
+                size="sm"
+                className="gap-2 h-9"
+              >
+                <Search className="h-3.5 w-3.5" />
+                {searching
+                  ? 'Searching...'
+                  : activeSection === ALL_SECTIONS
+                    ? 'Search all pins'
+                    : 'Search this section'}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {visiblePins.length === 0 ? (
+        <EmptyState
+          icon={Image}
+          title={pins.length === 0 ? 'No pins yet' : `No pins in ${activeSectionLabel}`}
+          description={
+            pins.length === 0
+              ? 'Sync this board to import its pins.'
+              : 'Try another section or re-sync the board.'
+          }
+          action={{ label: 'Sync now', onClick: importPins }}
+        />
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            Tap to select, or use the crop icon to focus on specific areas.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {visiblePins.map((pin) => (
+              <PinCard
+                key={pin.id}
+                pin={pin}
+                selected={selectedPinIds.has(pin.id)}
+                showSelection
+                hasCrop={pinCrops.has(pin.id)}
+                onToggleSelect={togglePinSelection}
+                onCropClick={handleCropClick}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {cropModalPin && (
+        <PinCropModal
+          open={cropModalOpen}
+          onOpenChange={setCropModalOpen}
+          imageUrl={cropModalPin.image_url}
+          pinTitle={cropModalPin.title}
+          existingCrop={pinCrops.get(cropModalPin.id) || null}
+          onSave={handleCropSave}
+        />
+      )}
+    </div>
+  );
+}
