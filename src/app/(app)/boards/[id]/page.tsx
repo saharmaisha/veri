@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { ArrowLeft, Image, RefreshCw, Search, X } from 'lucide-react';
 import { PinCard } from '@/components/pins/PinCard';
 import { PinCropModal } from '@/components/pins/PinCropModal';
+import { SectionCard, type SectionData } from '@/components/sections/SectionCard';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ export default function BoardDetailPage() {
   const [budgetMax, setBudgetMax] = useState('150');
   const [selectedPinIds, setSelectedPinIds] = useState<Set<string>>(new Set());
   const [activeSection, setActiveSection] = useState(ALL_SECTIONS);
+  const [viewMode, setViewMode] = useState<'sections' | 'pins'>('sections');
 
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropModalPin, setCropModalPin] = useState<PinterestPin | null>(null);
@@ -44,7 +46,8 @@ export default function BoardDetailPage() {
         fetch('/api/pinterest/boards'),
       ]);
       const [pinsData, boardsData] = await Promise.all([pinsRes.json(), boardsRes.json()]);
-      setPins(pinsData.pins || []);
+      const pinsFromApi = (pinsData.pins || []) as PinterestPin[];
+      setPins(pinsFromApi);
       const matchedBoard = (boardsData.boards || []).find(
         (item: PinterestBoard) => item.id === boardId
       );
@@ -83,8 +86,8 @@ export default function BoardDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId]);
 
-  const sections = useMemo(() => {
-    const sectionMap = new Map<string, { key: string; name: string; count: number }>();
+  const sections = useMemo((): SectionData[] => {
+    const sectionMap = new Map<string, SectionData>();
 
     for (const pin of pins) {
       if (!pin.section_key) {
@@ -94,11 +97,15 @@ export default function BoardDetailPage() {
       const existing = sectionMap.get(pin.section_key);
       if (existing) {
         existing.count += 1;
+        if (existing.previewImages.length < 4) {
+          existing.previewImages.push(pin.image_url);
+        }
       } else {
         sectionMap.set(pin.section_key, {
           key: pin.section_key,
           name: pin.section_name || 'Untitled section',
           count: 1,
+          previewImages: [pin.image_url],
         });
       }
     }
@@ -115,6 +122,17 @@ export default function BoardDetailPage() {
       setActiveSection(ALL_SECTIONS);
     }
   }, [activeSection, sections]);
+
+  // Set initial view mode when pins load
+  useEffect(() => {
+    if (!loading) {
+      setViewMode(sections.length > 0 ? 'sections' : 'pins');
+    }
+  }, [loading, sections.length]);
+
+  const allPinsPreviewImages = useMemo(() => {
+    return pins.slice(0, 4).map((pin) => pin.image_url);
+  }, [pins]);
 
   const visiblePins = useMemo(() => {
     if (activeSection === ALL_SECTIONS) {
@@ -236,18 +254,35 @@ export default function BoardDetailPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/boards">
-          <Button variant="ghost" size="icon" className="shrink-0">
+        {viewMode === 'pins' && sections.length > 0 ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            onClick={() => setViewMode('sections')}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-        </Link>
+        ) : (
+          <Link href="/boards">
+            <Button variant="ghost" size="icon" className="shrink-0">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+        )}
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-semibold tracking-tight truncate">{board?.name || 'Board'}</h1>
           <p className="text-sm text-muted-foreground">
-            {visiblePins.length} pin{visiblePins.length === 1 ? '' : 's'}
-            {activeSection !== ALL_SECTIONS && <span> in {activeSectionLabel}</span>}
-            {hasSelection && (
-              <span className="text-foreground font-medium"> &middot; {selectedPins.length} selected</span>
+            {viewMode === 'sections' ? (
+              <>{sections.length} section{sections.length === 1 ? '' : 's'}</>
+            ) : (
+              <>
+                {visiblePins.length} pin{visiblePins.length === 1 ? '' : 's'}
+                {activeSection !== ALL_SECTIONS && <span> in {activeSectionLabel}</span>}
+                {hasSelection && (
+                  <span className="text-foreground font-medium"> &middot; {selectedPins.length} selected</span>
+                )}
+              </>
             )}
           </p>
         </div>
@@ -257,120 +292,153 @@ export default function BoardDetailPage() {
         </Button>
       </div>
 
-      {pins.length > 0 && (
-        <div className="flex flex-wrap items-end gap-3 py-4 border-y">
-          {sections.length > 0 && (
-            <div className="w-full">
-              <Tabs
-                value={activeSection}
-                onValueChange={(value) => {
-                  setActiveSection(value);
-                  setSelectedPinIds(new Set());
-                }}
-              >
-                <TabsList variant="line" className="flex-wrap h-auto">
-                  <TabsTrigger value={ALL_SECTIONS}>All ({pins.length})</TabsTrigger>
-                  {sections.map((section) => (
-                    <TabsTrigger key={section.key} value={section.key}>
-                      {section.name} ({section.count})
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
+      {viewMode === 'sections' && sections.length > 0 ? (
+        /* Sections Overview */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <SectionCard
+            section={{
+              key: ALL_SECTIONS,
+              name: 'All pins',
+              count: pins.length,
+              previewImages: allPinsPreviewImages,
+            }}
+            onClick={() => {
+              setActiveSection(ALL_SECTIONS);
+              setViewMode('pins');
+              setSelectedPinIds(new Set());
+            }}
+          />
+          {sections.map((section) => (
+            <SectionCard
+              key={section.key}
+              section={section}
+              onClick={() => {
+                setActiveSection(section.key);
+                setViewMode('pins');
+                setSelectedPinIds(new Set());
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        /* Pins View */
+        <>
+          {pins.length > 0 && (
+            <div className="flex flex-wrap items-end gap-3 py-4 border-y">
+              {sections.length > 0 && (
+                <div className="w-full">
+                  <Tabs
+                    value={activeSection}
+                    onValueChange={(value) => {
+                      setActiveSection(value);
+                      setSelectedPinIds(new Set());
+                    }}
+                  >
+                    <TabsList variant="line" className="flex-wrap h-auto">
+                      <TabsTrigger value={ALL_SECTIONS}>All ({pins.length})</TabsTrigger>
+                      {sections.map((section) => (
+                        <TabsTrigger key={section.key} value={section.key}>
+                          {section.name} ({section.count})
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="budget" className="text-xs text-muted-foreground">
+                  Max budget
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                    $
+                  </span>
+                  <Input
+                    id="budget"
+                    type="number"
+                    value={budgetMax}
+                    onChange={(e) => setBudgetMax(e.target.value)}
+                    className="pl-7 w-28 h-9"
+                    min={0}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 ml-auto">
+                {hasSelection && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-muted-foreground h-9"
+                    onClick={() => setSelectedPinIds(new Set())}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Clear
+                  </Button>
+                )}
+                {hasSelection ? (
+                  <Button
+                    onClick={() => runBoardSearch('selected_pins')}
+                    disabled={searching}
+                    size="sm"
+                    className="gap-2 h-9"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    {searching
+                      ? 'Searching...'
+                      : `Search ${selectedPins.length} pin${selectedPins.length === 1 ? '' : 's'}`}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => runBoardSearch('all_board')}
+                    disabled={searching || visiblePins.length === 0}
+                    size="sm"
+                    className="gap-2 h-9"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    {searching
+                      ? 'Searching...'
+                      : activeSection === ALL_SECTIONS
+                        ? 'Search all pins'
+                        : 'Search this section'}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="budget" className="text-xs text-muted-foreground">
-              Max budget
-            </Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                $
-              </span>
-              <Input
-                id="budget"
-                type="number"
-                value={budgetMax}
-                onChange={(e) => setBudgetMax(e.target.value)}
-                className="pl-7 w-28 h-9"
-                min={0}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2 ml-auto">
-            {hasSelection && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-muted-foreground h-9"
-                onClick={() => setSelectedPinIds(new Set())}
-              >
-                <X className="h-3.5 w-3.5" />
-                Clear
-              </Button>
-            )}
-            {hasSelection ? (
-              <Button
-                onClick={() => runBoardSearch('selected_pins')}
-                disabled={searching}
-                size="sm"
-                className="gap-2 h-9"
-              >
-                <Search className="h-3.5 w-3.5" />
-                {searching
-                  ? 'Searching...'
-                  : `Search ${selectedPins.length} pin${selectedPins.length === 1 ? '' : 's'}`}
-              </Button>
-            ) : (
-              <Button
-                onClick={() => runBoardSearch('all_board')}
-                disabled={searching || visiblePins.length === 0}
-                size="sm"
-                className="gap-2 h-9"
-              >
-                <Search className="h-3.5 w-3.5" />
-                {searching
-                  ? 'Searching...'
-                  : activeSection === ALL_SECTIONS
-                    ? 'Search all pins'
-                    : 'Search this section'}
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {visiblePins.length === 0 ? (
-        <EmptyState
-          icon={Image}
-          title={pins.length === 0 ? 'No pins yet' : `No pins in ${activeSectionLabel}`}
-          description={
-            pins.length === 0
-              ? 'Sync this board to import its pins.'
-              : 'Try another section or re-sync the board.'
-          }
-          action={{ label: 'Sync now', onClick: importPins }}
-        />
-      ) : (
-        <>
-          <p className="text-xs text-muted-foreground">
-            Tap to select, or use the crop icon to focus on specific areas.
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {visiblePins.map((pin) => (
-              <PinCard
-                key={pin.id}
-                pin={pin}
-                selected={selectedPinIds.has(pin.id)}
-                showSelection
-                hasCrop={pinCrops.has(pin.id)}
-                onToggleSelect={togglePinSelection}
-                onCropClick={handleCropClick}
-              />
-            ))}
-          </div>
+          {visiblePins.length === 0 ? (
+            <EmptyState
+              icon={Image}
+              title={pins.length === 0 ? 'No pins yet' : `No pins in ${activeSectionLabel}`}
+              description={
+                pins.length === 0
+                  ? 'Sync this board to import its pins.'
+                  : 'Try another section or re-sync the board.'
+              }
+              action={{ label: 'Sync now', onClick: importPins }}
+            />
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Tap to select, or use the crop icon to focus on specific areas.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {visiblePins.map((pin) => (
+                  <PinCard
+                    key={pin.id}
+                    pin={pin}
+                    selected={selectedPinIds.has(pin.id)}
+                    showSelection
+                    hasCrop={pinCrops.has(pin.id)}
+                    onToggleSelect={togglePinSelection}
+                    onCropClick={handleCropClick}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
 
