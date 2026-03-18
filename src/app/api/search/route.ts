@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { trackAppEvent } from '@/lib/services/app-events';
 import { analyzeImage } from '@/lib/services/image-analysis';
+import { getPreferences } from '@/lib/services/preferences';
+import { enforceRateLimit } from '@/lib/services/rate-limit';
 import { orchestrateSearch } from '@/lib/services/search-orchestrator';
 import type { BoardSearchRequest, SearchFilters } from '@/lib/types/products';
 import type { PinAnalysis, PinterestPin } from '@/lib/types/database';
+import { searchRequestSchema } from '@/lib/utils/validators';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -15,20 +19,36 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+    const parsed = searchRequestSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid search payload' }, { status: 400 });
+    }
+
+    await enforceRateLimit({
+      userId: user.id,
+      eventType: 'search_request',
+      maxRequests: 10,
+      windowMs: 60 * 60 * 1000,
+      path: '/api/search',
+    });
+
+    const preferences = await getPreferences(user.id);
+    const payload = parsed.data;
 
     const filters: SearchFilters = {
-      budget_min: body.budget_min,
-      budget_max: body.budget_max,
-      excluded_retailers: body.excluded_retailers || [],
-      exclude_luxury: false,
-      length: body.length ?? body.dress_length,
-      sleeve_preference: body.sleeve_preference,
-      color: body.color,
-      mode: body.mode || 'both',
+      budget_min: payload.budget_min ?? preferences.default_budget_min ?? undefined,
+      budget_max: payload.budget_max ?? preferences.default_budget_max ?? undefined,
+      excluded_retailers: payload.excluded_retailers || [],
+      exclude_luxury: payload.exclude_luxury ?? preferences.exclude_luxury,
+      length: payload.length ?? payload.dress_length,
+      sleeve_preference: payload.sleeve_preference,
+      color: payload.color,
+      mode: payload.mode || 'both',
     };
 
-    if (body.pins?.length) {
-      const boardRequest = body as BoardSearchRequest;
+    if ('pins' in payload) {
+      const boardRequest = payload as BoardSearchRequest;
       const selectedPins = boardRequest.search_scope === 'selected_pins' && boardRequest.selected_pin_ids?.length
         ? boardRequest.pins.filter((pin) => boardRequest.selected_pin_ids?.includes(pin.id))
         : boardRequest.pins;
@@ -62,6 +82,18 @@ export async function POST(request: Request) {
         searchScope: boardRequest.search_scope,
       });
 
+      await trackAppEvent({
+        userId: user.id,
+        eventType: 'search_completed',
+        path: '/api/search',
+        metadata: {
+          searchRunId: result.searchRun.id,
+          searchScope: boardRequest.search_scope,
+          selectedPinCount: selectedPins.length,
+          productCount: result.products.length,
+        },
+      });
+
       return NextResponse.json({
         search_run_id: result.searchRun.id,
         search_run: result.searchRun,
@@ -72,38 +104,49 @@ export async function POST(request: Request) {
       });
     }
 
-    if (!body.analysis) {
-      return NextResponse.json(
-        { error: 'Missing analysis object. Run analysis first.' },
-        { status: 400 },
-      );
-    }
-
-    const analysis: PinAnalysis = body.analysis;
-    const pin: PinterestPin = body.pin || {
-      id: analysis.pin_id,
-      user_id: user.id,
-      board_id: body.board_id || '',
-      pinterest_pin_id: analysis.pin_id,
-      section_key: null,
-      section_name: null,
-      title: body.pin_title || null,
-      description: null,
-      image_url: body.image_url || '',
-      source_url: null,
-      raw_payload: null,
-      imported_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const analysis: PinAnalysis = payload.analysis;
+    const pin: PinterestPin = payload.pin
+      ? {
+          ...payload.pin,
+          section_key: payload.pin.section_key ?? null,
+          section_name: payload.pin.section_name ?? null,
+        }
+      : {
+          id: analysis.pin_id,
+          user_id: user.id,
+          board_id: payload.board_id || '',
+          pinterest_pin_id: analysis.pin_id,
+          section_key: null,
+          section_name: null,
+          title: payload.pin_title || null,
+          description: null,
+          image_url: payload.image_url || '',
+          source_url: null,
+          raw_payload: null,
+          imported_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
 
     const result = await orchestrateSearch({
-      pinSearches: [{ pin, analysis, imageUrl: body.image_url || pin.image_url }],
+      pinSearches: [{ pin, analysis, imageUrl: payload.image_url || pin.image_url }],
       filters,
       userId: user.id,
-      boardId: body.board_id || pin.board_id || null,
-      boardName: body.board_name || null,
+      boardId: payload.board_id || pin.board_id || null,
+      boardName: payload.board_name || null,
       searchScope: 'single_pin',
+    });
+
+    await trackAppEvent({
+      userId: user.id,
+      eventType: 'search_completed',
+      path: '/api/search',
+      metadata: {
+        searchRunId: result.searchRun.id,
+        searchScope: 'single_pin',
+        selectedPinCount: 1,
+        productCount: result.products.length,
+      },
     });
 
     return NextResponse.json({
@@ -117,6 +160,11 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Search error:', error);
-    return NextResponse.json({ error: 'Search failed' }, { status: 500 });
+    const status =
+      error instanceof Error && error.message.toLowerCase().includes('rate limit') ? 429 : 500;
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Search failed' },
+      { status }
+    );
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProductSwipeDeck } from '@/components/swipe/ProductSwipeDeck';
 import { Button } from '@/components/ui/button';
@@ -23,8 +23,13 @@ export default function ResultsPage() {
     board,
     skipProduct,
     saveProduct,
+    unsaveProduct,
+    undoLastAction,
+    history,
     nextCard,
   } = useSwipeStore();
+  const hasTrackedView = useRef(false);
+  const hasTrackedComplete = useRef(false);
 
   useEffect(() => {
     if (products.length === 0) {
@@ -32,19 +37,59 @@ export default function ResultsPage() {
     }
   }, [products.length, router]);
 
+  useEffect(() => {
+    if (products.length === 0 || hasTrackedView.current) {
+      return;
+    }
+
+    hasTrackedView.current = true;
+    void fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: 'results_viewed',
+        path: '/results',
+        metadata: {
+          searchRunId: searchRun?.id ?? null,
+          productCount: products.length,
+          selectedPinCount: selectedPins.length,
+        },
+      }),
+    }).catch(() => {});
+  }, [products.length, searchRun?.id, selectedPins.length]);
+
+  useEffect(() => {
+    if (currentIndex < products.length || hasTrackedComplete.current) {
+      return;
+    }
+
+    hasTrackedComplete.current = true;
+    void fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: 'results_completed',
+        path: '/results',
+        metadata: {
+          searchRunId: searchRun?.id ?? null,
+          productCount: products.length,
+          savedCount: Array.from(history).filter((entry) => entry.action === 'save').length,
+        },
+      }),
+    }).catch(() => {});
+  }, [currentIndex, history, products.length, searchRun?.id]);
+
   const handleSave = useCallback(
     async (product: ProductResult) => {
       saveProduct(product.id);
       nextCard();
 
       try {
-        const response = await fetch('/api/sheets/append', {
+        const response = await fetch('/api/saved', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             product,
-            search_run_id: searchRun?.id,
-            pin_id: product.source_pin_id || analysis?.pin_id,
             pin_title: product.source_pin_title || null,
             inspiration_image_url: product.source_pin_image_url || null,
             board_name: product.board_name || board?.name || null,
@@ -54,19 +99,38 @@ export default function ResultsPage() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to append row');
+          throw new Error('Failed to save item');
         }
 
-        toast.success('Saved to Google Sheets', {
-          description: product.title,
-        });
+        const data = await response.json();
+        const syncStatus = data.item?.google_sync_status as
+          | 'pending'
+          | 'synced'
+          | 'failed'
+          | 'not_configured'
+          | undefined;
+
+        if (syncStatus === 'synced') {
+          toast.success('Saved and synced to Google Sheets', { description: product.title });
+        } else if (syncStatus === 'failed') {
+          toast.success('Saved to your list', {
+            description: 'Google Sheets sync failed. You can retry from Saved Items later.',
+          });
+        } else if (syncStatus === 'not_configured') {
+          toast.success('Saved to your list', {
+            description: 'Connect Google Sheets in Settings to auto-export your saves.',
+          });
+        } else {
+          toast.success('Saved to your list', { description: product.title });
+        }
       } catch {
-        toast.error('Could not save to Google Sheets', {
-          description: 'Make sure Google Sheets is connected in Settings.',
+        unsaveProduct(product.id);
+        toast.error('Could not save this item', {
+          description: 'Please try again. Your Google Sheets export was not updated.',
         });
       }
     },
-    [saveProduct, nextCard, searchRun, analysis, board, analyses]
+    [saveProduct, nextCard, searchRun, board, analyses, unsaveProduct]
   );
 
   const handleSkip = useCallback(
@@ -76,6 +140,30 @@ export default function ResultsPage() {
     },
     [skipProduct, nextCard]
   );
+
+  const handleUndo = useCallback(async () => {
+    const lastAction = undoLastAction();
+
+    if (!lastAction) {
+      return;
+    }
+
+    if (lastAction.action === 'save') {
+      try {
+        await fetch('/api/saved', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_result_id: lastAction.productId }),
+        });
+        toast.success('Last save undone');
+      } catch {
+        toast.error('The card returned, but the saved item may still exist.');
+      }
+      return;
+    }
+
+    toast.success('Last skip undone');
+  }, [undoLastAction]);
 
   if (products.length === 0) return null;
 
@@ -122,6 +210,8 @@ export default function ResultsPage() {
         currentIndex={currentIndex}
         onSave={handleSave}
         onSkip={handleSkip}
+        onUndo={handleUndo}
+        canUndo={history.length > 0}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { isOpenAIConfigured } from '@/lib/config';
+import { createClient } from '@/lib/supabase/server';
 import { analysisResultSchema, type AnalysisResult, type AnalysisRequest } from '@/lib/types/analysis';
 import {
   IMAGE_ANALYSIS_SYSTEM_PROMPT,
@@ -23,18 +24,25 @@ export async function analyzeImage(request: AnalysisRequest, userId: string): Pr
     result = await callOpenAIVision(request);
   }
 
-  const analysis: PinAnalysis = {
-    id: `analysis-${Date.now()}`,
-    pin_id: request.pin_id,
-    region_id: request.region_id || null,
-    user_id: userId,
-    analysis_mode: request.crop ? 'region' : 'full_pin',
-    ...result,
-    raw_model_output: result as unknown as Record<string, unknown>,
-    created_at: new Date().toISOString(),
-  };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('pin_analyses')
+    .insert({
+      pin_id: request.pin_id,
+      region_id: request.region_id || null,
+      user_id: userId,
+      analysis_mode: request.crop ? 'region' : 'full_pin',
+      ...result,
+      raw_model_output: result as unknown as Record<string, unknown>,
+    })
+    .select('*')
+    .single();
 
-  return analysis;
+  if (error || !data) {
+    throw new Error(error?.message || 'Failed to persist analysis');
+  }
+
+  return data as PinAnalysis;
 }
 
 async function callOpenAIVision(request: AnalysisRequest): Promise<AnalysisResult> {

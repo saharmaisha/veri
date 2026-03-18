@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { trackAppEvent } from '@/lib/services/app-events';
 import { getBoards, importBoardFromUrl, refreshBoardsAndPins } from '@/lib/services/board-sync';
 import type { PinterestBoard, PinterestPin } from '@/lib/types/database';
+import { boardImportSchema } from '@/lib/utils/validators';
 
 export interface BoardWithPreviews extends PinterestBoard {
   preview_pins: string[];
@@ -52,14 +54,39 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json().catch(() => ({})) as { board_url?: string };
+    const body = await request.json().catch(() => ({}));
+    const parsed = boardImportSchema.safeParse(body);
 
-    if (body.board_url?.trim()) {
-      const { board, boards, warning } = await importBoardFromUrl(user.id, body.board_url);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid board import payload' }, { status: 400 });
+    }
+
+    if (parsed.data.board_url?.trim()) {
+      const { board, boards, warning } = await importBoardFromUrl(user.id, parsed.data.board_url);
+      await trackAppEvent({
+        userId: user.id,
+        eventType: 'board_import_completed',
+        path: '/api/pinterest/boards',
+        metadata: {
+          boardId: board.id,
+          sourceUrl: board.source_url,
+          warning: warning?.message ?? null,
+        },
+      });
       return NextResponse.json({ board, boards, warning });
     }
 
     const result = await refreshBoardsAndPins(user.id);
+    await trackAppEvent({
+      userId: user.id,
+      eventType: 'boards_refresh_completed',
+      path: '/api/pinterest/boards',
+      metadata: {
+        refreshedBoards: result.refreshed_boards,
+        failedBoards: result.failed_boards,
+        refreshedPinCount: result.refreshed_pin_count,
+      },
+    });
     return NextResponse.json({
       boards: result.boards,
       refresh: {

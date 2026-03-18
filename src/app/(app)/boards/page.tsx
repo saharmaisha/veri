@@ -224,18 +224,32 @@ export default function BoardsPage() {
       </div>
 
       <form onSubmit={importBoard} className="flex gap-2">
-        <Input
-          type="url"
-          placeholder="Paste a Pinterest board URL"
-          value={boardUrl}
-          onChange={(event) => setBoardUrl(event.target.value)}
-          disabled={importing}
-          className="h-10"
-        />
-        <Button type="submit" disabled={importing} size="sm" className="gap-2 h-10 px-4 shrink-0">
-          <Plus className="h-3.5 w-3.5" />
-          {importing ? 'Importing\u2026' : 'Import'}
-        </Button>
+        <div className="flex-1 space-y-2">
+          <div className="flex gap-2">
+            <Input
+              type="url"
+              placeholder="Paste a Pinterest board URL"
+              value={boardUrl}
+              onChange={(event) => setBoardUrl(event.target.value)}
+              disabled={importing}
+              className="h-10"
+            />
+            <Button type="submit" disabled={importing} size="sm" className="gap-2 h-10 px-4 shrink-0">
+              <Plus className="h-3.5 w-3.5" />
+              {importing ? 'Importing\u2026' : 'Import'}
+            </Button>
+          </div>
+          {importing ? (
+            <p className="text-xs text-muted-foreground">
+              Large boards with sections can take a minute or two while Swipe loads every section.
+            </p>
+          ) : null}
+          {syncing ? (
+            <p className="text-xs text-muted-foreground">
+              Refreshing every board can take longer when Pinterest has to re-import lots of sectioned pins.
+            </p>
+          ) : null}
+        </div>
       </form>
 
       {boards.length === 0 ? (

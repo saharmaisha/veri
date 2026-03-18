@@ -1,6 +1,7 @@
 import { getTextProvider, getImageProvider } from '@/lib/providers/registry';
 import { rankByHeuristics, generateMatchReason } from '@/lib/ranking/ranker';
 import { dedupeByUrl } from '@/lib/ranking/deduper';
+import { createClient } from '@/lib/supabase/server';
 import type {
   NormalizedProduct,
   BoardSearchScope,
@@ -121,57 +122,79 @@ export async function orchestrateSearch(
 
   const analyses = pinSearches.map((pinSearch) => pinSearch.analysis);
   const selectedPins = pinSearches.map((pinSearch) => pinSearch.pin);
-
-  // Build search run record
-  const searchRun: SearchRun = {
-    id: `search-${Date.now()}`,
-    analysis_id: analyses[0]?.id || `analysis-${Date.now()}`,
-    user_id: userId,
-    mode: filters.mode,
-    search_scope: searchScope,
-    board_id: boardId,
-    board_name: boardName,
-    selected_pin_ids: selectedPins.map((pin) => pin.id),
-    selected_pin_count: selectedPins.length,
-    budget_min: filters.budget_min || null,
-    budget_max: filters.budget_max || null,
-    excluded_retailers: filters.excluded_retailers,
-    provider_summary: {
-      text_provider: textProvider.name,
-      image_provider: imageProvider.name,
-      text_results: totalTextResults,
-      image_results: totalImageResults,
-      analyzed_pins: selectedPins.length,
-      total_after_dedupe: combinedProducts.length,
-    },
-    created_at: new Date().toISOString(),
+  const supabase = await createClient();
+  const providerSummary = {
+    text_provider: textProvider.name,
+    image_provider: imageProvider.name,
+    text_results: totalTextResults,
+    image_results: totalImageResults,
+    analyzed_pins: selectedPins.length,
+    total_after_dedupe: combinedProducts.length,
   };
 
-  // Build product result records
-  const products: ProductResult[] = combinedProducts.map((p) => ({
-    id: `product-${p.provider_product_id}`,
-    search_run_id: searchRun.id,
-    user_id: userId,
-    source_provider: p.source_provider,
-    provider_product_id: p.provider_product_id,
-    title: p.title,
-    retailer: p.retailer,
-    price_text: p.price_text,
-    numeric_price: p.numeric_price,
-    currency: p.currency,
-    image_url: p.image_url,
-    product_url: p.product_url,
-    match_reason: p.match_reason,
-    match_score: p.match_score,
-    board_id: p.board_id || null,
-    board_name: p.board_name || null,
-    source_pin_id: p.source_pin_id || null,
-    source_pin_title: p.source_pin_title || null,
-    source_pin_image_url: p.source_pin_image_url || null,
-    balanced_query: p.balanced_query || null,
-    raw_payload: p.raw_payload || null,
-    created_at: new Date().toISOString(),
-  }));
+  const { data: searchRunData, error: searchRunError } = await supabase
+    .from('search_runs')
+    .insert({
+      analysis_id: analyses[0]?.id,
+      user_id: userId,
+      mode: filters.mode,
+      search_scope: searchScope,
+      board_id: boardId,
+      board_name: boardName,
+      selected_pin_ids: selectedPins.map((pin) => pin.id),
+      selected_pin_count: selectedPins.length,
+      budget_min: filters.budget_min || null,
+      budget_max: filters.budget_max || null,
+      excluded_retailers: filters.excluded_retailers,
+      provider_summary: providerSummary,
+    })
+    .select('*')
+    .single();
+
+  if (searchRunError || !searchRunData) {
+    throw new Error(searchRunError?.message || 'Failed to create search run');
+  }
+
+  const searchRun = searchRunData as SearchRun;
+  let products: ProductResult[] = [];
+
+  if (combinedProducts.length > 0) {
+    const { data: productRows, error: productError } = await supabase
+      .from('product_results')
+      .insert(
+        combinedProducts.map((p) => ({
+          search_run_id: searchRun.id,
+          user_id: userId,
+          source_provider: p.source_provider,
+          provider_product_id: p.provider_product_id,
+          title: p.title,
+          retailer: p.retailer,
+          price_text: p.price_text,
+          numeric_price: p.numeric_price,
+          currency: p.currency,
+          image_url: p.image_url,
+          product_url: p.product_url,
+          match_reason: p.match_reason,
+          match_score: p.match_score,
+          board_id: p.board_id || null,
+          board_name: p.board_name || null,
+          source_pin_id: p.source_pin_id || null,
+          source_pin_title: p.source_pin_title || null,
+          source_pin_image_url: p.source_pin_image_url || null,
+          balanced_query: p.balanced_query || null,
+          raw_payload: p.raw_payload || null,
+        }))
+      )
+      .select('*');
+
+    if (productError) {
+      throw new Error(productError.message);
+    }
+
+    products = ((productRows as ProductResult[]) || []).sort(
+      (a, b) => (b.match_score || 0) - (a.match_score || 0)
+    );
+  }
 
   return {
     searchRun,

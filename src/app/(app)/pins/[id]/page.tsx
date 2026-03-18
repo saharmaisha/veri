@@ -55,6 +55,22 @@ export default function PinDetailPage() {
     fetchPin();
   }, [boardId, pinId]);
 
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const response = await fetch('/api/preferences');
+        const data = await response.json();
+        if (response.ok && data.preferences?.default_budget_max !== null) {
+          setBudgetMax(String(data.preferences.default_budget_max));
+        }
+      } catch {
+        // keep default budget
+      }
+    };
+
+    void loadPreferences();
+  }, []);
+
   const handleCropComplete = useCallback((newCrop: PixelCrop | null) => {
     setCrop(newCrop);
   }, []);

@@ -86,6 +86,22 @@ export default function BoardDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId]);
 
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const response = await fetch('/api/preferences');
+        const data = await response.json();
+        if (response.ok && data.preferences?.default_budget_max !== null) {
+          setBudgetMax(String(data.preferences.default_budget_max));
+        }
+      } catch {
+        // keep default budget
+      }
+    };
+
+    void loadPreferences();
+  }, []);
+
   const sections = useMemo((): SectionData[] => {
     const sectionMap = new Map<string, SectionData>();
 
@@ -291,6 +307,12 @@ export default function BoardDetailPage() {
           {importing ? 'Syncing...' : 'Re-sync'}
         </Button>
       </div>
+
+      {importing ? (
+        <p className="text-xs text-muted-foreground">
+          Re-syncing a large board with sections can take a minute while Pinterest section pins finish loading.
+        </p>
+      ) : null}
 
       {viewMode === 'sections' && sections.length > 0 ? (
         /* Sections Overview */
