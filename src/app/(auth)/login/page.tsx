@@ -116,7 +116,11 @@ export default function LoginPage() {
 
         <p className="text-center text-xs text-muted-foreground leading-relaxed">
           By continuing you agree to let Swipe analyze your
-          public Pinterest boards to find shopping matches.
+          public Pinterest boards to find shopping matches. Read our{' '}
+          <Link href="/privacy" className="underline underline-offset-2">
+            privacy terms
+          </Link>
+          .
         </p>
       </div>
     </div>

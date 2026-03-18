@@ -13,11 +13,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Sparkles, LayoutGrid, Settings, LogOut, Menu } from 'lucide-react';
+import { Sparkles, LayoutGrid, Settings, LogOut, Menu, Heart, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 
 const navLinks = [
   { href: '/boards', label: 'Boards', icon: LayoutGrid },
+  { href: '/saved', label: 'Saved', icon: Heart },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -25,6 +26,7 @@ export function AppNav({ email }: { email?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const feedbackUrl = process.env.NEXT_PUBLIC_FEEDBACK_FORM_URL;
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -40,7 +42,7 @@ export function AppNav({ email }: { email?: string }) {
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-14 items-center justify-between px-6">
         <div className="flex items-center gap-6">
-          <Link href="/boards" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             <span className="font-semibold tracking-tight">Swipe</span>
           </Link>
@@ -61,6 +63,19 @@ export function AppNav({ email }: { email?: string }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {feedbackUrl ? (
+            <a
+              href={feedbackUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden md:inline-flex"
+            >
+              <Button variant="ghost" size="sm" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Feedback
+              </Button>
+            </a>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger className="hidden md:flex items-center justify-center h-9 w-9 rounded-full hover:bg-accent cursor-pointer transition-colors">
               <Avatar className="h-8 w-8">
@@ -88,6 +103,14 @@ export function AppNav({ email }: { email?: string }) {
                 </p>
               )}
               <nav className="flex flex-col gap-1 mt-4">
+                {feedbackUrl ? (
+                  <a href={feedbackUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Feedback
+                    </Button>
+                  </a>
+                ) : null}
                 {navLinks.map((link) => (
                   <Link key={link.href} href={link.href} onClick={() => setOpen(false)}>
                     <Button

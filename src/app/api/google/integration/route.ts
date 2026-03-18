@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { googleIntegrationSchema } from '@/lib/utils/validators';
 
 export async function GET() {
   const supabase = await createClient();
@@ -31,12 +32,17 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json();
+  const parsed = googleIntegrationSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid Google integration payload' }, { status: 400 });
+  }
 
   const { error } = await supabase.from('google_integrations').upsert(
     {
       user_id: user.id,
-      spreadsheet_id: body.spreadsheet_id || null,
-      sheet_name: body.sheet_name || 'Sheet1',
+      spreadsheet_id: parsed.data.spreadsheet_id || null,
+      sheet_name: parsed.data.sheet_name || 'Sheet1',
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' }

@@ -31,7 +31,7 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  const publicPaths = ['/', '/login', '/api/auth/callback', '/api/pinterest/callback'];
+  const publicPaths = ['/', '/login', '/privacy', '/api/auth/callback', '/api/pinterest/callback'];
   const isPublic = publicPaths.some(
     (p) => path === p || path.startsWith('/api/auth/') || path.startsWith('/_next/')
   );
@@ -43,8 +43,20 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && path === '/login') {
+    const [{ data: profile }, { count: boardCount }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('onboarding_completed_at')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('pinterest_boards')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+    ]);
     const url = request.nextUrl.clone();
-    url.pathname = '/boards';
+    url.pathname =
+      !profile?.onboarding_completed_at && (boardCount ?? 0) === 0 ? '/onboarding' : '/boards';
     return NextResponse.redirect(url);
   }
 

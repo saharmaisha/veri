@@ -36,10 +36,20 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchIntegration = async () => {
       try {
-        const res = await fetch('/api/google/integration');
-        const data = await res.json();
-        setGoogleConnected(data.connected || false);
-        setSpreadsheetId(data.spreadsheet_id || '');
+        const [integrationRes, preferencesRes] = await Promise.all([
+          fetch('/api/google/integration'),
+          fetch('/api/preferences'),
+        ]);
+        const integrationData = await integrationRes.json();
+        const preferencesData = await preferencesRes.json();
+        setGoogleConnected(integrationData.connected || false);
+        setSpreadsheetId(integrationData.spreadsheet_id || '');
+        setBudgetMax(
+          preferencesData.preferences?.default_budget_max !== null &&
+            preferencesData.preferences?.default_budget_max !== undefined
+            ? String(preferencesData.preferences.default_budget_max)
+            : '150'
+        );
       } catch {
         // Silently fail
       } finally {
@@ -89,9 +99,25 @@ export default function SettingsPage() {
 
   const handleSavePreferences = async () => {
     setSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    toast.success('Preferences saved');
-    setSaving(false);
+    try {
+      const response = await fetch('/api/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          default_budget_max: budgetMax ? Number(budgetMax) : null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save preferences');
+      }
+
+      toast.success('Preferences saved');
+    } catch {
+      toast.error('Failed to save preferences');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

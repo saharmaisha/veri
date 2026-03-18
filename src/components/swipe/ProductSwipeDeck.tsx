@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { ProductCard } from './ProductCard';
 import { Button } from '@/components/ui/button';
-import { X, Heart, ExternalLink, CheckCircle } from 'lucide-react';
+import { X, Heart, ExternalLink, CheckCircle, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import type { ProductResult } from '@/lib/types/database';
 
@@ -13,6 +13,8 @@ interface ProductSwipeDeckProps {
   currentIndex: number;
   onSave: (product: ProductResult) => void;
   onSkip: (product: ProductResult) => void;
+  onUndo?: () => void;
+  canUndo?: boolean;
 }
 
 const SWIPE_THRESHOLD = 100;
@@ -22,6 +24,8 @@ export function ProductSwipeDeck({
   currentIndex,
   onSave,
   onSkip,
+  onUndo,
+  canUndo = false,
 }: ProductSwipeDeckProps) {
   const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
 
@@ -77,6 +81,11 @@ export function ProductSwipeDeck({
             Back to boards
           </Button>
         </Link>
+        <Link href="/saved">
+          <Button size="sm" className="mt-1">
+            View saved items
+          </Button>
+        </Link>
       </div>
     );
   }
@@ -106,6 +115,18 @@ export function ProductSwipeDeck({
       </div>
 
       <div className="flex items-center gap-4">
+        {onUndo && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            onClick={onUndo}
+            disabled={!canUndo}
+          >
+            <RotateCcw className="h-4 w-4" />
+            Undo
+          </Button>
+        )}
         <Button
           variant="outline"
           size="lg"

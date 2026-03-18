@@ -1,7 +1,7 @@
 import Link from 'next/link';
+import { ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
-import { ArrowRight, Sparkles, Search, ShoppingBag, FileSpreadsheet } from 'lucide-react';
 
 export default async function LandingPage() {
   const supabase = await createClient();
@@ -11,15 +11,21 @@ export default async function LandingPage() {
   const isSignedIn = Boolean(user);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="container mx-auto flex items-center justify-between py-5 px-6">
+    <div className="flex min-h-screen flex-col bg-background">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}} />
+      <header className="container mx-auto flex items-center justify-between px-6 py-5">
         <Link href="/" className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
           <span className="text-lg font-semibold tracking-tight">Swipe</span>
         </Link>
         {isSignedIn ? (
           <div className="flex items-center gap-4">
-            <span className="hidden sm:block text-sm text-muted-foreground">
+            <span className="hidden text-sm text-muted-foreground sm:block">
               {user?.email}
             </span>
             <Link href="/boards">
@@ -28,87 +34,161 @@ export default async function LandingPage() {
           </div>
         ) : (
           <Link href="/login">
-            <Button variant="ghost" size="sm">Sign in</Button>
+            <Button variant="ghost" size="sm">
+              Sign in
+            </Button>
           </Link>
         )}
       </header>
 
-      <main className="flex-1 flex flex-col">
-        <section className="flex flex-col items-center text-center px-6 pt-24 pb-20 gap-6 max-w-2xl mx-auto">
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight leading-[1.15]">
-            Find affordable versions of
-            <br />
-            your Pinterest style
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-md leading-relaxed">
-            Paste a board, let AI analyze your pins, and swipe through
-            similar pieces at prices you&apos;ll actually pay.
-          </p>
-          <Link href={isSignedIn ? '/boards' : '/login'} className="mt-2">
-            <Button size="lg" className="gap-2 px-6">
-              {isSignedIn ? 'Go to my boards' : 'Get started'}
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
+      <main className="flex-1">
+        <section className="container mx-auto flex min-h-[min(calc(100vh-9rem),36rem)] items-center px-6 pb-12 pt-20 sm:pt-24">
+          <div className="mx-auto max-w-2xl space-y-6 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Shop the looks you've already saved
+            </div>
+            <div className="space-y-4">
+              <h1 className="text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
+                Pin it. Find it. Wear it.
+              </h1>
+              <p className="mx-auto max-w-xl text-lg leading-relaxed text-muted-foreground">
+                Paste a Pinterest board and we'll find similar pieces you can
+                actually buy—from the retailers you love, at the prices you set.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <Link href={isSignedIn ? '/boards' : '/login'}>
+                <Button size="lg" className="gap-2 px-6">
+                  {isSignedIn ? 'Open my boards' : 'Try the beta'}
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link
+                href="/privacy"
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Privacy & terms
+              </Link>
+            </div>
+          </div>
         </section>
 
-        <section className="border-t bg-muted/30">
-          <div className="container mx-auto grid sm:grid-cols-3 gap-px bg-border max-w-3xl">
-            {[
-              {
-                icon: Search,
-                title: 'Paste a board link',
-                description: 'Import any public Pinterest board or section instantly.',
-              },
-              {
-                icon: Sparkles,
-                title: 'AI finds matches',
-                description: 'Each pin is analyzed for style, color, and fit to generate smart searches.',
-              },
-              {
-                icon: ShoppingBag,
-                title: 'Swipe to keep',
-                description: 'Browse results one by one. Swipe right to save, left to skip.',
-              },
-            ].map((step, i) => (
-              <div key={step.title} className="bg-background px-6 py-10 flex flex-col items-center text-center gap-3">
-                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-                  {i + 1}
-                </div>
-                <h3 className="font-medium">{step.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+        <section className="pb-16">
+          <p className="mb-4 text-center text-sm font-medium text-muted-foreground">
+            Whatever you're looking for
+          </p>
+          <div className="relative overflow-hidden">
+            <div
+              className="flex w-max gap-3"
+              style={{
+                animation: 'marquee 25s linear infinite',
+              }}
+            >
+              {/* First set */}
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                🎓 Graduation outfits
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                ✈️ Vacation wardrobe
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                💼 Internship staples
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                🎉 Date night looks
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                🏋️ Gym fits
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                👗 Wedding guest
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                🎿 Ski trip gear
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                ☕ Coffee run fits
+              </span>
+              {/* Duplicate set for seamless loop */}
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                🎓 Graduation outfits
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                ✈️ Vacation wardrobe
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                💼 Internship staples
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                🎉 Date night looks
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                🏋️ Gym fits
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                👗 Wedding guest
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                🎿 Ski trip gear
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-border/70 bg-muted/30 px-4 py-2 text-sm">
+                ☕ Coffee run fits
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="container mx-auto px-6 pb-24 pt-12">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-6 text-center">
+              <p className="text-sm font-medium text-muted-foreground">
+                How it works
+              </p>
+            </div>
+            <div className="grid gap-3 text-left text-sm sm:grid-cols-3">
+              <div className="rounded-xl border border-border/70 bg-card px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                  Step 1
+                </p>
+                <p className="mt-2 font-medium text-foreground">Paste a Pinterest board</p>
+                <p className="mt-1 text-muted-foreground">
+                  Start with the outfits and pins you already saved.
+                </p>
               </div>
-            ))}
+              <div className="rounded-xl border border-border/70 bg-card px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                  Step 2
+                </p>
+                <p className="mt-2 font-medium text-foreground">
+                  We find similar pieces
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Get shoppable matches from retailers you love, at prices you control.
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-card px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                  Step 3
+                </p>
+                <p className="mt-2 font-medium text-foreground">Save your favorites</p>
+                <p className="mt-1 text-muted-foreground">
+                  Keep the best options in one place while you decide what to buy.
+                </p>
+              </div>
+            </div>
           </div>
-        </section>
-
-        <section className="border-t bg-muted/30 py-16">
-          <div className="container mx-auto max-w-2xl text-center space-y-4 px-6">
-            <h2 className="text-lg font-medium">
-              Why not just use Pinterest&apos;s &ldquo;Shop&rdquo; button?
-            </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Pinterest&apos;s built-in shopping tends to surface niche boutiques and premium prices.
-              Swipe searches across popular retailers like Zara, H&amp;M, ASOS, and more—finding
-              similar styles at prices that actually fit a student budget.
-            </p>
-          </div>
-        </section>
-
-        <section className="flex flex-col items-center text-center px-6 py-16 gap-3">
-          <FileSpreadsheet className="h-6 w-6 text-primary/70" />
-          <h2 className="text-lg font-medium">
-            Every saved item goes straight to your Google Sheet
-          </h2>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Connect once in settings, then every right-swipe appends the product details
-            to your spreadsheet automatically.
-          </p>
         </section>
       </main>
 
-      <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        Swipe
+      <footer className="border-t py-6 text-xs text-muted-foreground">
+        <div className="container mx-auto flex flex-col gap-3 px-6 sm:flex-row sm:items-center sm:justify-between">
+          <span>Swipe</span>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link href="/privacy">Privacy & terms</Link>
+            <a href="mailto:smaisha@college.harvard.edu">smaisha@college.harvard.edu</a>
+          </div>
+        </div>
       </footer>
     </div>
   );

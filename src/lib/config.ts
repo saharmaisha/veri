@@ -3,6 +3,8 @@ import { z } from 'zod';
 const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().min(1),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  NEXT_PUBLIC_FEEDBACK_FORM_URL: z.string().url().optional().or(z.literal('')).default(''),
+  NEXT_PUBLIC_SUPPORT_EMAIL: z.string().email().optional().or(z.literal('')).default(''),
   SUPABASE_SERVICE_ROLE_KEY: z.string().default(''),
   OPENAI_API_KEY: z.string().default(''),
   PINTEREST_CLIENT_ID: z.string().default(''),
@@ -17,7 +19,9 @@ const envSchema = z.object({
   SHOPPING_PROVIDER_MODE: z.enum(['mock', 'text', 'image', 'full']).default('mock'),
   TEXT_SHOPPING_PROVIDER_KEY: z.string().default(''),
   IMAGE_SHOPPING_PROVIDER_KEY: z.string().default(''),
-  ENCRYPTION_SECRET: z.string().default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+  ENCRYPTION_SECRET: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'ENCRYPTION_SECRET must be a 64-character hex string'),
 });
 
 type Env = z.infer<typeof envSchema>;
@@ -26,6 +30,8 @@ function getEnv(): Env {
   return envSchema.parse({
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    NEXT_PUBLIC_FEEDBACK_FORM_URL: process.env.NEXT_PUBLIC_FEEDBACK_FORM_URL,
+    NEXT_PUBLIC_SUPPORT_EMAIL: process.env.NEXT_PUBLIC_SUPPORT_EMAIL,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     PINTEREST_CLIENT_ID: process.env.PINTEREST_CLIENT_ID,
