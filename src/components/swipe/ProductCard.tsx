@@ -1,13 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import { Badge } from '@/components/ui/badge';
 import { ExternalLink } from 'lucide-react';
 import type { ProductResult } from '@/lib/types/database';
 
 interface ProductCardProps {
   product: ProductResult;
-  budgetMax?: number;
 }
 
 const WHITELISTED_PATTERNS = [
@@ -35,8 +33,7 @@ function isWhitelisted(url: string): boolean {
   }
 }
 
-export function ProductCard({ product, budgetMax }: ProductCardProps) {
-  const isUnderBudget = budgetMax && product.numeric_price && product.numeric_price <= budgetMax;
+export function ProductCard({ product }: ProductCardProps) {
   const useNextImage = !!product.image_url && isWhitelisted(product.image_url);
 
   return (
@@ -47,16 +44,18 @@ export function ProductCard({ product, budgetMax }: ProductCardProps) {
             src={product.image_url}
             alt={product.title}
             fill
-            className="object-cover"
+            className="object-cover select-none pointer-events-none"
             sizes="(max-width: 768px) 100vw, 400px"
             priority
+            draggable={false}
           />
         ) : product.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.image_url}
             alt={product.title}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+            draggable={false}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
@@ -73,17 +72,6 @@ export function ProductCard({ product, budgetMax }: ProductCardProps) {
             <span className="text-lg font-semibold">{product.price_text}</span>
           </div>
         </div>
-
-        {(isUnderBudget || (product.match_score && product.match_score >= 0.8)) && (
-          <div className="flex flex-wrap gap-1.5">
-            {isUnderBudget && (
-              <Badge variant="secondary" className="text-xs">Within budget</Badge>
-            )}
-            {product.match_score && product.match_score >= 0.8 && (
-              <Badge variant="secondary" className="text-xs">Great match</Badge>
-            )}
-          </div>
-        )}
 
         {(product.source_pin_title || product.board_name) && (
           <p className="text-xs text-muted-foreground">

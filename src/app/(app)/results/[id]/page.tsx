@@ -120,7 +120,6 @@ export default function ResultsPage() {
       <ProductSwipeDeck
         products={products}
         currentIndex={currentIndex}
-        budgetMax={searchRun?.budget_max || undefined}
         onSave={handleSave}
         onSkip={handleSkip}
       />

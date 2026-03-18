@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { ProductCard } from './ProductCard';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import type { ProductResult } from '@/lib/types/database';
 interface ProductSwipeDeckProps {
   products: ProductResult[];
   currentIndex: number;
-  budgetMax?: number;
   onSave: (product: ProductResult) => void;
   onSkip: (product: ProductResult) => void;
 }
@@ -21,7 +20,6 @@ const SWIPE_THRESHOLD = 100;
 export function ProductSwipeDeck({
   products,
   currentIndex,
-  budgetMax,
   onSave,
   onSkip,
 }: ProductSwipeDeckProps) {
@@ -47,6 +45,20 @@ export function ProductSwipeDeck({
     },
     [currentProduct, onSave, onSkip]
   );
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        handleSwipe('left');
+      } else if (e.key === 'ArrowRight') {
+        handleSwipe('right');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSwipe]);
 
   if (isFinished) {
     return (
@@ -78,16 +90,15 @@ export function ProductSwipeDeck({
       <div className="relative w-full max-w-sm h-[560px]">
         {nextProduct && (
           <div className="absolute inset-0 scale-[0.96] opacity-50 pointer-events-none">
-            <ProductCard product={nextProduct} budgetMax={budgetMax} />
+            <ProductCard product={nextProduct} />
           </div>
         )}
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" custom={exitDirection}>
           {currentProduct && !exitDirection && (
             <SwipeableCard
               key={currentProduct.id}
               product={currentProduct}
-              budgetMax={budgetMax}
               onSwipe={handleSwipe}
             />
           )}
@@ -134,13 +145,21 @@ export function ProductSwipeDeck({
   );
 }
 
+const cardVariants = {
+  initial: { scale: 0.95, opacity: 0 },
+  animate: { scale: 1, opacity: 1 },
+  exit: (direction: 'left' | 'right' | null) => ({
+    x: direction === 'left' ? -300 : 300,
+    opacity: 0,
+    transition: { duration: 0.2 },
+  }),
+};
+
 function SwipeableCard({
   product,
-  budgetMax,
   onSwipe,
 }: {
   product: ProductResult;
-  budgetMax?: number;
   onSwipe: (direction: 'left' | 'right') => void;
 }) {
   const x = useMotionValue(0);
@@ -164,9 +183,10 @@ function SwipeableCard({
           onSwipe('left');
         }
       }}
-      initial={{ scale: 0.95, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ x: 300, opacity: 0, transition: { duration: 0.2 } }}
+      variants={cardVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
     >
       <motion.div
         className="absolute top-6 left-4 z-10 bg-destructive text-white px-3 py-1.5 rounded-lg font-semibold text-sm -rotate-12"
@@ -181,7 +201,7 @@ function SwipeableCard({
         SAVE
       </motion.div>
 
-      <ProductCard product={product} budgetMax={budgetMax} />
+      <ProductCard product={product} />
     </motion.div>
   );
 }
