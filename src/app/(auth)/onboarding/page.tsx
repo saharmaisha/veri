@@ -6,25 +6,25 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Sparkles, ArrowRight, Pin } from 'lucide-react';
+import { Sparkles, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [budget, setBudget] = useState('150');
-  const [excludeLuxury, setExcludeLuxury] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const steps = [
     {
       title: 'Welcome to Swipe',
-      description: 'We help you find affordable versions of outfits you love on Pinterest.',
+      description: 'Find shoppable versions of the outfits you love on Pinterest.',
       content: (
         <div className="flex flex-col items-center gap-6 py-8">
           <Sparkles className="h-16 w-16 text-primary" />
           <div className="text-center space-y-2">
             <p className="text-muted-foreground">
-              Connect your Pinterest, pick a board, and we&apos;ll find you better deals on similar items.
+              Paste a Pinterest board and we&apos;ll find similar pieces you can actually buy.
             </p>
           </div>
         </div>
@@ -36,7 +36,7 @@ export default function OnboardingPage() {
       content: (
         <div className="space-y-6 py-4">
           <div className="space-y-2">
-            <Label htmlFor="budget">Maximum budget per item</Label>
+            <Label htmlFor="budget">Default max budget per item</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
               <Input
@@ -48,32 +48,10 @@ export default function OnboardingPage() {
                 min={0}
               />
             </div>
+            <p className="text-sm text-muted-foreground">
+              You can change this anytime in settings.
+            </p>
           </div>
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Exclude luxury brands</Label>
-              <p className="text-sm text-muted-foreground">Skip designer and high-end retailers</p>
-            </div>
-            <Switch checked={excludeLuxury} onCheckedChange={setExcludeLuxury} />
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: 'Connect Pinterest',
-      description: 'Link your Pinterest account to import boards.',
-      content: (
-        <div className="flex flex-col items-center gap-6 py-8">
-          <Pin className="h-16 w-16 text-red-500" />
-          <p className="text-muted-foreground text-center">
-            Connect your Pinterest to import your saved boards, or skip to paste board URLs directly.
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => router.push('/settings')}
-          >
-            Connect Pinterest
-          </Button>
         </div>
       ),
     },
@@ -110,15 +88,42 @@ export default function OnboardingPage() {
                 <div />
               )}
               <Button
+                disabled={saving}
                 onClick={() => {
                   if (step < steps.length - 1) {
                     setStep(step + 1);
                   } else {
-                    router.push('/boards');
+                    void (async () => {
+                      setSaving(true);
+
+                      try {
+                        const response = await fetch('/api/preferences', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            default_budget_max: budget ? Number(budget) : null,
+                            complete_onboarding: true,
+                          }),
+                        });
+
+                        if (!response.ok) {
+                          throw new Error('Failed to save onboarding preferences');
+                        }
+
+                        toast.success('You’re all set');
+                        router.push('/boards');
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error ? error.message : 'Failed to complete onboarding'
+                        );
+                      } finally {
+                        setSaving(false);
+                      }
+                    })();
                   }
                 }}
               >
-                {step < steps.length - 1 ? 'Next' : 'Get started'}
+                {step < steps.length - 1 ? 'Next' : saving ? 'Saving…' : 'Get started'}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
