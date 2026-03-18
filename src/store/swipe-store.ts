@@ -18,10 +18,13 @@ interface SwipeState {
   currentIndex: number;
   skippedIds: Set<string>;
   savedIds: Set<string>;
+  history: Array<{ productId: string; action: 'save' | 'skip'; index: number }>;
 
   setSearchData: (session: SearchSessionData) => void;
   skipProduct: (productId: string) => void;
   saveProduct: (productId: string) => void;
+  unsaveProduct: (productId: string) => void;
+  undoLastAction: () => { productId: string; action: 'save' | 'skip'; index: number } | null;
   nextCard: () => void;
   getCurrentProduct: () => ProductResult | null;
   getRemainingCount: () => number;
@@ -38,6 +41,7 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
   currentIndex: 0,
   skippedIds: new Set(),
   savedIds: new Set(),
+  history: [],
 
   setSearchData: (session) =>
     set({
@@ -50,21 +54,65 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
       currentIndex: 0,
       skippedIds: new Set(),
       savedIds: new Set(),
+      history: [],
     }),
 
   skipProduct: (productId) =>
     set((state) => {
       const newSkipped = new Set(state.skippedIds);
       newSkipped.add(productId);
-      return { skippedIds: newSkipped };
+      return {
+        skippedIds: newSkipped,
+        history: [...state.history, { productId, action: 'skip', index: state.currentIndex }],
+      };
     }),
 
   saveProduct: (productId) =>
     set((state) => {
       const newSaved = new Set(state.savedIds);
       newSaved.add(productId);
+      return {
+        savedIds: newSaved,
+        history: [...state.history, { productId, action: 'save', index: state.currentIndex }],
+      };
+    }),
+
+  unsaveProduct: (productId) =>
+    set((state) => {
+      const newSaved = new Set(state.savedIds);
+      newSaved.delete(productId);
       return { savedIds: newSaved };
     }),
+
+  undoLastAction: () => {
+    const state = get();
+    const lastAction = state.history[state.history.length - 1];
+
+    if (!lastAction) {
+      return null;
+    }
+
+    set((currentState) => {
+      const nextHistory = currentState.history.slice(0, -1);
+      const nextSaved = new Set(currentState.savedIds);
+      const nextSkipped = new Set(currentState.skippedIds);
+
+      if (lastAction.action === 'save') {
+        nextSaved.delete(lastAction.productId);
+      } else {
+        nextSkipped.delete(lastAction.productId);
+      }
+
+      return {
+        currentIndex: lastAction.index,
+        history: nextHistory,
+        savedIds: nextSaved,
+        skippedIds: nextSkipped,
+      };
+    });
+
+    return lastAction;
+  },
 
   nextCard: () =>
     set((state) => ({
@@ -92,5 +140,6 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
       currentIndex: 0,
       skippedIds: new Set(),
       savedIds: new Set(),
+      history: [],
     }),
 }));

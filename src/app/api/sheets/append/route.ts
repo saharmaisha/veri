@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { appendToSheet, ensureHeaders } from '@/lib/services/google-sheets';
+import { sheetsAppendSchema } from '@/lib/utils/validators';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -12,6 +13,15 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+    const parsed = sheetsAppendSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json({
+        success: false,
+        sync_status: 'failed',
+        error: 'Invalid Google Sheets payload',
+      }, { status: 400 });
+    }
 
     // Look up the user's spreadsheet ID from their google_integrations row
     const { data: integration } = await supabase
@@ -28,7 +38,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const spreadsheetId = body.spreadsheet_id || integration?.spreadsheet_id;
+    const spreadsheetId = parsed.data.spreadsheet_id || integration?.spreadsheet_id;
 
     if (!spreadsheetId) {
       return NextResponse.json({
@@ -44,14 +54,14 @@ export async function POST(request: Request) {
     const result = await appendToSheet(
       spreadsheetId,
       {
-        product: body.product,
+        product: parsed.data.product,
         user_email: user.email || '',
-        board_name: body.board_name,
-        pin_id: body.pin_id,
-        pin_title: body.pin_title,
-        inspiration_image_url: body.inspiration_image_url,
-        balanced_query: body.balanced_query,
-        mode: body.mode,
+        board_name: parsed.data.board_name,
+        pin_id: parsed.data.pin_id,
+        pin_title: parsed.data.pin_title,
+        inspiration_image_url: parsed.data.inspiration_image_url,
+        balanced_query: parsed.data.balanced_query,
+        mode: parsed.data.mode,
       },
       user.id
     );

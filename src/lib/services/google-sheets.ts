@@ -1,10 +1,20 @@
 import { google } from 'googleapis';
 import { createClient } from '@/lib/supabase/server';
 import { decrypt, encrypt } from './encryption';
-import type { ProductResult } from '@/lib/types/database';
+
+interface SheetProduct {
+  title: string;
+  retailer: string;
+  price_text: string;
+  numeric_price: number | null;
+  currency: string;
+  product_url: string;
+  image_url: string;
+  match_reason: string | null;
+}
 
 interface SheetAppendData {
-  product: ProductResult;
+  product: SheetProduct;
   user_email: string;
   board_name?: string;
   pin_id?: string;

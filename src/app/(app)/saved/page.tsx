@@ -1,20 +1,60 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SavedItemCard } from '@/components/saved/SavedItemCard';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Heart, Scale, X } from 'lucide-react';
-import { useSwipeStore } from '@/store/swipe-store';
-import type { ProductResult } from '@/lib/types/database';
+import { Heart, Info, Scale, X } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { toast } from 'sonner';
+import type { ProductResult, SavedItemWithProduct } from '@/lib/types/database';
 
 export default function SavedPage() {
-  const { products, savedIds } = useSwipeStore();
+  const [items, setItems] = useState<SavedItemWithProduct[]>([]);
+  const [loading, setLoading] = useState(true);
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
 
-  const savedProducts = products.filter((p) => savedIds.has(p.id));
+  useEffect(() => {
+    const loadSavedItems = async () => {
+      try {
+        const response = await fetch('/api/saved');
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load saved items');
+        }
+
+        setItems(data.items || []);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to load saved items');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadSavedItems();
+    void fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: 'saved_page_viewed',
+        path: '/saved',
+      }),
+    }).catch(() => {});
+  }, []);
+
+  const savedProducts = useMemo(
+    () => items.filter((item) => item.product).map((item) => item.product),
+    [items]
+  );
 
   const toggleCompare = (productId: string, selected: boolean) => {
     setCompareIds((prev) => {
@@ -29,6 +69,10 @@ export default function SavedPage() {
   };
 
   const compareProducts = savedProducts.filter((p) => compareIds.has(p.id));
+
+  if (loading) {
+    return <LoadingState />;
+  }
 
   if (savedProducts.length === 0) {
     return (
@@ -75,14 +119,14 @@ export default function SavedPage() {
       )}
 
       <div className="grid gap-3">
-        {savedProducts.map((product) => (
+        {items.map((item) => (
           <SavedItemCard
-            key={product.id}
-            product={product}
-            savedAt={new Date().toISOString()}
-            syncStatus="not_configured"
-            selected={showCompare ? compareIds.has(product.id) : undefined}
-            onSelect={showCompare ? (sel) => toggleCompare(product.id, sel as boolean) : undefined}
+            key={item.id}
+            product={item.product}
+            savedAt={item.created_at}
+            syncStatus={item.google_sync_status}
+            selected={showCompare ? compareIds.has(item.product.id) : undefined}
+            onSelect={showCompare ? (sel) => toggleCompare(item.product.id, sel as boolean) : undefined}
           />
         ))}
       </div>
@@ -107,7 +151,21 @@ function ComparePanel({ products, onClose }: { products: ProductResult[]; onClos
                 <th className="text-left py-2 pr-4 font-medium">Item</th>
                 <th className="text-left py-2 pr-4 font-medium">Retailer</th>
                 <th className="text-right py-2 pr-4 font-medium">Price</th>
-                <th className="text-right py-2 font-medium">Score</th>
+                <th className="text-right py-2 font-medium">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="inline-flex cursor-default items-center gap-1">
+                        Score
+                        <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[15rem]">
+                        Based on how closely the color, length, silhouette, and
+                        other attributes match your pin, plus budget fit and
+                        retailer.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </th>
               </tr>
             </thead>
             <tbody>

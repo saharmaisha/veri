@@ -2,6 +2,7 @@ export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
+  onboarding_completed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -170,6 +171,15 @@ export interface ProviderLog {
   request_summary: Record<string, unknown>;
   response_summary: Record<string, unknown>;
   status: string;
+  created_at: string;
+}
+
+export interface AppEvent {
+  id: string;
+  user_id: string;
+  event_type: string;
+  path: string | null;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 
