@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowRight, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function OnboardingPage() {
@@ -14,6 +14,17 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [budget, setBudget] = useState('150');
   const [saving, setSaving] = useState(false);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
+
+  const validateBudget = (value: string): boolean => {
+    const num = Number(value);
+    if (!value || isNaN(num) || num < 10) {
+      setBudgetError('Minimum budget is $10');
+      return false;
+    }
+    setBudgetError(null);
+    return true;
+  };
 
   const steps = [
     {
@@ -25,6 +36,13 @@ export default function OnboardingPage() {
           <div className="text-center space-y-2">
             <p className="text-muted-foreground">
               Paste a Pinterest board and we&apos;ll find similar pieces you can actually buy.
+            </p>
+          </div>
+          <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border text-left">
+            <Info className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">Your board must be public.</strong> Swipe can only access publicly visible Pinterest boards.
+              To make a board public: open it on Pinterest, tap the three dots, select &quot;Edit board&quot;, and set visibility to &quot;Public&quot;.
             </p>
           </div>
         </div>
@@ -43,14 +61,22 @@ export default function OnboardingPage() {
                 id="budget"
                 type="number"
                 value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                className="pl-8"
-                min={0}
+                onChange={(e) => {
+                  setBudget(e.target.value);
+                  if (budgetError) validateBudget(e.target.value);
+                }}
+                onBlur={(e) => validateBudget(e.target.value)}
+                className={`pl-8 ${budgetError ? 'border-destructive' : ''}`}
+                min={10}
               />
             </div>
-            <p className="text-sm text-muted-foreground">
-              You can change this anytime in settings.
-            </p>
+            {budgetError ? (
+              <p className="text-sm text-destructive">{budgetError}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                You can change this anytime in settings.
+              </p>
+            )}
           </div>
         </div>
       ),
@@ -88,11 +114,12 @@ export default function OnboardingPage() {
                 <div />
               )}
               <Button
-                disabled={saving}
+                disabled={saving || (step === steps.length - 1 && !!budgetError)}
                 onClick={() => {
                   if (step < steps.length - 1) {
                     setStep(step + 1);
                   } else {
+                    if (!validateBudget(budget)) return;
                     void (async () => {
                       setSaving(true);
 
