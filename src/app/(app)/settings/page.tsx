@@ -10,8 +10,10 @@ import { toast } from 'sonner';
 import { useTourTrigger } from '@/components/tour/useTourTrigger';
 
 export default function SettingsPage() {
+  const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('150');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useTourTrigger('settings');
 
@@ -20,14 +22,15 @@ export default function SettingsPage() {
       try {
         const response = await fetch('/api/preferences');
         const data = await response.json();
-        setBudgetMax(
-          data.preferences?.default_budget_max !== null &&
-            data.preferences?.default_budget_max !== undefined
-            ? String(data.preferences.default_budget_max)
-            : '150'
-        );
+        const prefs = data.preferences;
+        if (prefs) {
+          setBudgetMin(prefs.default_budget_min !== null ? String(prefs.default_budget_min) : '');
+          setBudgetMax(prefs.default_budget_max !== null ? String(prefs.default_budget_max) : '150');
+        }
       } catch {
         // Silently fail
+      } finally {
+        setLoading(false);
       }
     };
     fetchPreferences();
@@ -40,6 +43,7 @@ export default function SettingsPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          default_budget_min: budgetMin ? Number(budgetMin) : null,
           default_budget_max: budgetMax ? Number(budgetMax) : null,
         }),
       });
@@ -63,7 +67,7 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">Manage your preferences.</p>
       </div>
 
-      {/* Shopping Preferences */}
+      {/* Budget Preferences */}
       <Card data-tour="budget-settings" className="border-border/60">
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -71,33 +75,56 @@ export default function SettingsPage() {
               <DollarSign className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-base">Shopping</CardTitle>
-              <CardDescription>Default search preferences</CardDescription>
+              <CardTitle className="text-base">Budget</CardTitle>
+              <CardDescription>Set your default price range</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="budget-max">Default max budget per item</Label>
-            <div className="relative max-w-[160px]">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-              <Input
-                id="budget-max"
-                type="number"
-                value={budgetMax}
-                onChange={(e) => setBudgetMax(e.target.value)}
-                className="pl-7 h-9"
-                min={0}
-              />
+          <div className="flex gap-4">
+            <div className="space-y-2 flex-1">
+              <Label htmlFor="budget-min">Min budget</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input
+                  id="budget-min"
+                  type="number"
+                  value={budgetMin}
+                  onChange={(e) => setBudgetMin(e.target.value)}
+                  className="pl-7 h-9"
+                  min={0}
+                  placeholder="0"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+            <div className="space-y-2 flex-1">
+              <Label htmlFor="budget-max">Max budget</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input
+                  id="budget-max"
+                  type="number"
+                  value={budgetMax}
+                  onChange={(e) => setBudgetMax(e.target.value)}
+                  className="pl-7 h-9"
+                  min={0}
+                  placeholder="150"
+                  disabled={loading}
+                />
+              </div>
             </div>
           </div>
-
-          <Button onClick={handleSavePreferences} disabled={saving} size="sm" className="gap-2">
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {saving ? 'Saving\u2026' : 'Save preferences'}
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            Leave min empty to search from $0. Leave max empty for no upper limit.
+          </p>
         </CardContent>
       </Card>
+
+      <Button onClick={handleSavePreferences} disabled={saving || loading} className="gap-2">
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {saving ? 'Saving\u2026' : 'Save preferences'}
+      </Button>
     </div>
   );
 }
