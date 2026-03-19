@@ -49,8 +49,9 @@ export class SerpApiTextShoppingProvider implements ShoppingProvider {
       return [];
     }
 
-    // Run balanced query first, then optionally the others
-    const queries = input.queries.slice(0, 3);
+    // Use only balanced_query (first query) for efficiency
+    // Increase results per query to compensate for fewer queries
+    const queries = [input.queries[0]];
     const resultsByQuery = await Promise.all(
       queries.map(async (query, queryIndex) => {
         try {
@@ -58,7 +59,7 @@ export class SerpApiTextShoppingProvider implements ShoppingProvider {
           url.searchParams.set('engine', 'google_shopping');
           url.searchParams.set('q', query);
           url.searchParams.set('api_key', this.apiKey);
-          url.searchParams.set('num', '20');
+          url.searchParams.set('num', '40');
 
           const res = await fetch(url.toString());
 
