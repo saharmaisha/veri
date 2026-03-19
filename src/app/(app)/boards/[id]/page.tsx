@@ -73,17 +73,10 @@ export default function BoardDetailPage() {
 
   const fetchPins = async () => {
     try {
-      const [pinsRes, boardsRes] = await Promise.all([
-        fetch(`/api/pinterest/boards/${boardId}/pins`),
-        fetch('/api/pinterest/boards'),
-      ]);
-      const [pinsData, boardsData] = await Promise.all([pinsRes.json(), boardsRes.json()]);
-      const pinsFromApi = (pinsData.pins || []) as PinterestPin[];
-      setPins(pinsFromApi);
-      const matchedBoard = (boardsData.boards || []).find(
-        (item: PinterestBoard) => item.id === boardId
-      );
-      setBoard(matchedBoard || null);
+      const res = await fetch(`/api/pinterest/boards/${boardId}/pins`);
+      const data = await res.json();
+      setPins((data.pins || []) as PinterestPin[]);
+      setBoard((data.board as PinterestBoard) || null);
     } catch {
       toast.error('Failed to load pins');
     } finally {
@@ -281,6 +274,10 @@ export default function BoardDetailPage() {
           board: data.board,
         });
         router.push(`/results/${data.search_run_id}`);
+      } else if (res.status === 429 || data.error?.includes('Rate limit')) {
+        toast.error("You've reached the search limit", {
+          description: 'Please wait an hour before searching again.',
+        });
       } else {
         toast.error(data.error || 'Search failed');
       }

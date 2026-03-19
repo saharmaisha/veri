@@ -16,8 +16,17 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const pins = await getPins(user.id, id);
-  return NextResponse.json({ pins });
+  const [pins, boardResult] = await Promise.all([
+    getPins(user.id, id),
+    supabase
+      .from('pinterest_boards')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single(),
+  ]);
+
+  return NextResponse.json({ pins, board: boardResult.data });
 }
 
 export async function POST(
