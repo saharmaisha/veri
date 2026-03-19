@@ -4,6 +4,7 @@ import { connectBrowser } from '@/lib/services/browserbase';
 import type { Page, Response } from 'playwright-core';
 
 const PINTEREST_ORIGIN = 'https://www.pinterest.com';
+const PINTEREST_HOSTNAME_REGEX = /(\.|^)pinterest\.(com|co\.uk|ca|de|fr|es|it|pt|nl|at|ch|com\.au|co\.nz|jp|co\.kr|com\.mx|cl|com\.br|ie|be|se|dk|no|fi|pl|ru|nz)$/i;
 const PINTEREST_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const PUBLIC_BOARD_SOURCE_TYPE: PinterestBoardSource = 'public_url';
@@ -157,8 +158,8 @@ function parsePublicPinterestSource(input: string): PublicBoardSourceInfo {
     throw new Error('Enter a valid Pinterest board URL.');
   }
 
-  if (!/(\.|^)pinterest\.com$/i.test(url.hostname)) {
-    throw new Error('Only public Pinterest board URLs are supported.');
+  if (!PINTEREST_HOSTNAME_REGEX.test(url.hostname)) {
+    throw new Error('Only public Pinterest board URLs are supported (pinterest.com and regional domains like pinterest.co.uk).');
   }
 
   const normalized = new URL(PINTEREST_ORIGIN);
@@ -367,7 +368,7 @@ function extractSectionUrlsFromHtml(
 
     try {
       const url = new URL(href, PINTEREST_ORIGIN);
-      if (!/(\.|^)pinterest\.com$/i.test(url.hostname)) {
+      if (!PINTEREST_HOSTNAME_REGEX.test(url.hostname)) {
         continue;
       }
 
@@ -731,7 +732,7 @@ async function scrapePublicPinterestBoardPage(
 
           try {
             const url = new URL(href, 'https://www.pinterest.com');
-            if (!/(\.|^)pinterest\.com$/i.test(url.hostname)) return;
+            if (!PINTEREST_HOSTNAME_REGEX.test(url.hostname)) return;
 
             const segments = url.pathname.split('/').filter(Boolean);
             // Section URLs have 3 segments: username/board/section
