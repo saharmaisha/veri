@@ -257,7 +257,7 @@ export default function BoardsPage() {
             <Input
               data-tour="board-url-input"
               type="url"
-              placeholder="Paste a Pinterest board URL"
+              placeholder="Paste a public Pinterest board URL"
               value={boardUrl}
               onChange={(event) => setBoardUrl(event.target.value)}
               disabled={importing}
@@ -278,7 +278,11 @@ export default function BoardsPage() {
             <p className="text-xs text-muted-foreground">
               Large boards with sections can take a minute or two while Swipe loads every section.
             </p>
-          ) : null}
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Only public boards can be imported. Private boards aren&apos;t accessible.
+            </p>
+          )}
           {syncing ? (
             <p className="text-xs text-muted-foreground">
               Refreshing every board can take longer when Pinterest has to re-import lots of sectioned pins.

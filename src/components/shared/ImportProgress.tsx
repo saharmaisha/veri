@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 
 const STEPS = [
   { id: 'connect', label: 'Connecting to Pinterest', icon: Link2, duration: 2000 },
-  { id: 'fetch', label: 'Fetching board data', icon: Download, duration: 4000 },
-  { id: 'sections', label: 'Loading sections', icon: FolderOpen, duration: 6000 },
+  { id: 'fetch', label: 'Loading pins (this can take a minute for large boards)', icon: Download, duration: 4000 },
+  { id: 'sections', label: 'Saving your board', icon: FolderOpen, duration: 6000 },
 ];
 
 export function ImportProgress() {
