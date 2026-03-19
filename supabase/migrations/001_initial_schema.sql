@@ -239,9 +239,6 @@ create table public.saved_items (
   product_result_id uuid not null references public.product_results(id) on delete cascade,
   pin_id uuid not null references public.pinterest_pins(id) on delete cascade,
   search_run_id uuid not null references public.search_runs(id) on delete cascade,
-  google_sync_status text not null default 'not_configured'
-    check (google_sync_status in ('pending', 'synced', 'failed', 'not_configured')),
-  google_sync_error text,
   created_at timestamptz not null default now()
 );
 
@@ -253,28 +250,6 @@ alter table public.saved_items enable row level security;
 
 create policy "Users manage own saved items"
   on public.saved_items for all using (auth.uid() = user_id);
-
--- ============================================================
--- GOOGLE INTEGRATIONS
--- ============================================================
-create table public.google_integrations (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  google_connected boolean not null default false,
-  spreadsheet_id text,
-  sheet_name text default 'Sheet1',
-  access_token_encrypted text,
-  refresh_token_encrypted text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create unique index idx_google_user on public.google_integrations(user_id);
-
-alter table public.google_integrations enable row level security;
-
-create policy "Users manage own google integrations"
-  on public.google_integrations for all using (auth.uid() = user_id);
 
 -- ============================================================
 -- USER PREFERENCES
@@ -345,10 +320,6 @@ create trigger set_boards_updated_at
 
 create trigger set_pins_updated_at
   before update on public.pinterest_pins
-  for each row execute function public.update_updated_at();
-
-create trigger set_google_updated_at
-  before update on public.google_integrations
   for each row execute function public.update_updated_at();
 
 create trigger set_prefs_updated_at

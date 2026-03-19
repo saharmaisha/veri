@@ -31,7 +31,7 @@ export default function PrivacyPage() {
             <li>Your account email and basic profile record.</li>
             <li>Pinterest board and pin metadata you import into the app.</li>
             <li>AI-generated analysis results and shopping search runs.</li>
-            <li>Saved products and Google Sheets sync status if you use that feature.</li>
+            <li>Saved products you choose to keep in the app.</li>
             <li>Basic usage events needed to improve the beta and enforce rate limits.</li>
           </ul>
         </section>
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-medium">How integrations are used</h2>
           <p className="text-sm text-muted-foreground leading-6">
-            Pinterest access is used to import your boards and pins. Google access is only used to append saved items to the spreadsheet you configure. Tokens for connected integrations are encrypted before storage.
+            Pinterest access is used to import your boards and pins. Tokens for connected integrations are encrypted before storage.
           </p>
         </section>
 
