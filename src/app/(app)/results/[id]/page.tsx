@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useCallback, useRef, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { ProductSwipeDeck } from '@/components/swipe/ProductSwipeDeck';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { LoadingState } from '@/components/shared/LoadingState';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useSwipeStore } from '@/store/swipe-store';
@@ -12,7 +14,12 @@ import type { ProductResult } from '@/lib/types/database';
 import { useTourTrigger } from '@/components/tour/useTourTrigger';
 
 export default function ResultsPage() {
+  const params = useParams();
   const router = useRouter();
+  const searchRunId = params.id as string;
+  const [loading, setLoading] = useState(false);
+  const [noResults, setNoResults] = useState(false);
+  const hasFetchedFromApi = useRef(false);
 
   const {
     products,
@@ -28,17 +35,47 @@ export default function ResultsPage() {
     undoLastAction,
     history,
     nextCard,
+    setSearchData,
   } = useSwipeStore();
   const hasTrackedView = useRef(false);
   const hasTrackedComplete = useRef(false);
 
   useTourTrigger('results');
 
+  // Try to recover search data from API if store is empty
   useEffect(() => {
-    if (products.length === 0) {
-      router.replace('/boards');
+    if (products.length > 0 || hasFetchedFromApi.current || !searchRunId) {
+      return;
     }
-  }, [products.length, router]);
+
+    hasFetchedFromApi.current = true;
+    setLoading(true);
+
+    fetch(`/api/search/${searchRunId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch');
+        return res.json();
+      })
+      .then((data) => {
+        if (data.products && data.products.length > 0) {
+          setSearchData({
+            searchRun: data.search_run,
+            products: data.products,
+            analyses: data.analyses || [],
+            selectedPins: data.selected_pins || [],
+            board: data.board,
+          });
+        } else {
+          setNoResults(true);
+        }
+      })
+      .catch(() => {
+        router.replace('/boards');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [products.length, searchRunId, router, setSearchData]);
 
   useEffect(() => {
     if (products.length === 0 || hasTrackedView.current) {
@@ -147,6 +184,26 @@ export default function ResultsPage() {
 
     toast.success('Last skip undone');
   }, [undoLastAction]);
+
+  if (loading) {
+    return <LoadingState />;
+  }
+
+  if (noResults) {
+    return (
+      <div className="max-w-lg mx-auto">
+        <EmptyState
+          icon={Search}
+          title="No products found"
+          description="We couldn't find matching products for this search. Try different pins or adjust your budget."
+          action={{
+            label: 'Back to boards',
+            onClick: () => router.push('/boards'),
+          }}
+        />
+      </div>
+    );
+  }
 
   if (products.length === 0) return null;
 
