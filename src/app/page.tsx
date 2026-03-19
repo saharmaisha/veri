@@ -186,7 +186,13 @@ export default async function LandingPage() {
           <span>Veri</span>
           <div className="flex flex-wrap items-center gap-4">
             <Link href="/privacy">Privacy & terms</Link>
-            <a href="mailto:smaisha@college.harvard.edu">smaisha@college.harvard.edu</a>
+            <a
+              href={process.env.NEXT_PUBLIC_FEEDBACK_FORM_URL || 'https://forms.gle/68ZBQSur82AfAG8c8'}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Feedback
+            </a>
           </div>
         </div>
       </footer>

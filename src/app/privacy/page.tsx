@@ -33,6 +33,7 @@ export default function PrivacyPage() {
             <li>AI-generated analysis results and shopping search runs.</li>
             <li>Saved products you choose to keep in the app.</li>
             <li>Basic usage events needed to improve the beta and enforce rate limits.</li>
+            <li>Feedback you submit through our feedback form.</li>
           </ul>
         </section>
 
@@ -51,21 +52,18 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-medium">User expectations</h2>
-          <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground leading-6">
-            <li>Only import boards and content you have the right to use.</li>
-            <li>Do not misuse the app for scraping abuse or automated attacks.</li>
-            <li>Expect the feature set, pricing, and availability to change during beta.</li>
-          </ul>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-xl font-medium">Contact</h2>
+          <h2 className="text-xl font-medium">Contact & feedback</h2>
           <p className="text-sm text-muted-foreground leading-6">
-            If you need support or want to request deletion of your beta data, contact us at{' '}
-            <a href="mailto:smaisha@college.harvard.edu" className="text-foreground hover:underline">
-              smaisha@college.harvard.edu
-            </a>.
+            If you need support or want to request deletion of your beta data, use our{' '}
+            <a
+              href={process.env.NEXT_PUBLIC_FEEDBACK_FORM_URL || 'https://forms.gle/68ZBQSur82AfAG8c8'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground hover:underline"
+            >
+              feedback form
+            </a>
+            .
           </p>
         </section>
       </main>
