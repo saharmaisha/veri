@@ -154,3 +154,96 @@
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+/* Swipe gesture demo animation */
+@keyframes swipe-demo {
+  0%, 100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  25% {
+    transform: translateX(60px);
+    opacity: 1;
+  }
+  35% {
+    transform: translateX(60px);
+    opacity: 0;
+  }
+  36% {
+    transform: translateX(-60px);
+    opacity: 0;
+  }
+  45% {
+    transform: translateX(-60px);
+    opacity: 1;
+  }
+  70% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-swipe-demo {
+  animation: swipe-demo 3s ease-in-out infinite;
+}
+
+/* Driver.js tour customization */
+.driver-popover {
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15) !important;
+}
+
+.driver-popover-title {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+.driver-popover-description {
+  font-size: 0.875rem !important;
+  color: var(--muted-foreground) !important;
+}
+
+.driver-popover-progress-text {
+  font-size: 0.75rem !important;
+  color: var(--muted-foreground) !important;
+}
+
+.driver-popover-navigation-btns {
+  gap: 0.5rem !important;
+}
+
+.driver-popover-prev-btn,
+.driver-popover-next-btn {
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 0.5rem 1rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  transition: opacity 0.2s !important;
+}
+
+.driver-popover-prev-btn:hover,
+.driver-popover-next-btn:hover {
+  opacity: 0.9 !important;
+}
+
+.driver-popover-prev-btn {
+  background: var(--muted) !important;
+  color: var(--foreground) !important;
+}
+
+.driver-popover-close-btn {
+  color: var(--muted-foreground) !important;
+}
+
+.driver-popover-arrow-side-left,
+.driver-popover-arrow-side-right,
+.driver-popover-arrow-side-top,
+.driver-popover-arrow-side-bottom {
+  border-color: var(--border) !important;
+}

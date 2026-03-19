@@ -13,8 +13,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Sparkles, LayoutGrid, Settings, LogOut, Menu, Heart, MessageSquare } from 'lucide-react';
+import { Sparkles, LayoutGrid, Settings, LogOut, Menu, Heart, MessageSquare, HelpCircle } from 'lucide-react';
 import { useState } from 'react';
+import { useTour, type TourPage } from '@/components/tour/TourProvider';
 
 const navLinks = [
   { href: '/boards', label: 'Boards', icon: LayoutGrid },
@@ -22,11 +23,29 @@ const navLinks = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
+function getTourPageFromPath(pathname: string): TourPage | null {
+  if (pathname === '/boards') return 'boards';
+  if (pathname.startsWith('/boards/')) return 'boardDetail';
+  if (pathname.startsWith('/pins/')) return 'pinDetail';
+  if (pathname.startsWith('/results/')) return 'results';
+  if (pathname === '/saved') return 'saved';
+  if (pathname === '/settings') return 'settings';
+  return null;
+}
+
 export function AppNav({ email }: { email?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const feedbackUrl = process.env.NEXT_PUBLIC_FEEDBACK_FORM_URL;
+  const { startTour } = useTour();
+  const currentTourPage = getTourPageFromPath(pathname);
+
+  const handleStartTour = () => {
+    if (currentTourPage) {
+      startTour(currentTourPage);
+    }
+  };
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -63,6 +82,17 @@ export function AppNav({ email }: { email?: string }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {currentTourPage && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={handleStartTour}
+              className="text-muted-foreground hover:text-foreground"
+              title="Show tour"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          )}
           {feedbackUrl ? (
             <a
               href={feedbackUrl}

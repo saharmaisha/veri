@@ -49,49 +49,49 @@ export class SerpApiTextShoppingProvider implements ShoppingProvider {
       return [];
     }
 
-    const allResults: RawProduct[] = [];
-
     // Run balanced query first, then optionally the others
     const queries = input.queries.slice(0, 3);
+    const resultsByQuery = await Promise.all(
+      queries.map(async (query, queryIndex) => {
+        try {
+          const url = new URL('https://serpapi.com/search');
+          url.searchParams.set('engine', 'google_shopping');
+          url.searchParams.set('q', query);
+          url.searchParams.set('api_key', this.apiKey);
+          url.searchParams.set('num', '20');
 
-    for (const query of queries) {
-      try {
-        const url = new URL('https://serpapi.com/search');
-        url.searchParams.set('engine', 'google_shopping');
-        url.searchParams.set('q', query);
-        url.searchParams.set('api_key', this.apiKey);
-        url.searchParams.set('num', '20');
+          const res = await fetch(url.toString());
 
-        const res = await fetch(url.toString());
+          if (!res.ok) {
+            console.error(`[SerpAPI] HTTP ${res.status} for query: ${query}`);
+            return [];
+          }
 
-        if (!res.ok) {
-          console.error(`[SerpAPI] HTTP ${res.status} for query: ${query}`);
-          continue;
+          const data: SerpApiResponse = await res.json();
+
+          if (data.error) {
+            console.error(`[SerpAPI] API error: ${data.error}`);
+            return [];
+          }
+
+          return (data.shopping_results || []).map((r) => ({
+            id: r.product_id || `serpapi-${queryIndex}-${r.position}-${query.slice(0, 10)}`,
+            title: r.title,
+            retailer: r.source,
+            price: r.extracted_price ?? parsePriceText(r.price) ?? undefined,
+            currency: r.currency || 'USD',
+            price_text: r.price || '',
+            image_url: r.thumbnail || '',
+            product_url: r.product_link || r.link || '',
+          }));
+        } catch (err) {
+          console.error(`[SerpAPI] Fetch error for query "${query}":`, err);
+          return [];
         }
+      })
+    );
 
-        const data: SerpApiResponse = await res.json();
-
-        if (data.error) {
-          console.error(`[SerpAPI] API error: ${data.error}`);
-          continue;
-        }
-
-        const results = (data.shopping_results || []).map((r) => ({
-          id: r.product_id || `serpapi-${r.position}-${query.slice(0, 10)}-${Date.now()}`,
-          title: r.title,
-          retailer: r.source,
-          price: r.extracted_price ?? parsePriceText(r.price) ?? undefined,
-          currency: r.currency || 'USD',
-          price_text: r.price || '',
-          image_url: r.thumbnail || '',
-          product_url: r.product_link || r.link || '',
-        }));
-
-        allResults.push(...results);
-      } catch (err) {
-        console.error(`[SerpAPI] Fetch error for query "${query}":`, err);
-      }
-    }
+    const allResults = resultsByQuery.flat();
 
     // Client-side budget filtering (more reliable than Google's tbs parameter)
     if (input.budget_max) {

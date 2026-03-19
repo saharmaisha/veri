@@ -117,6 +117,7 @@ export function ProductSwipeDeck({
       <div className="flex items-center gap-4">
         {onUndo && (
           <Button
+            data-tour="undo-button"
             variant="ghost"
             size="sm"
             className="gap-2"
@@ -142,6 +143,7 @@ export function ProductSwipeDeck({
             href={currentProduct.product_url}
             target="_blank"
             rel="noopener noreferrer"
+            data-tour="external-link"
           >
             <Button variant="ghost" size="sm" className="h-9 w-9 rounded-full p-0">
               <ExternalLink className="h-3.5 w-3.5" />
@@ -159,7 +161,7 @@ export function ProductSwipeDeck({
         </Button>
       </div>
 
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground" data-tour="swipe-gesture-demo">
         Swipe or tap &mdash; right to save, left to skip
       </p>
     </div>

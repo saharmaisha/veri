@@ -49,72 +49,75 @@ export async function orchestrateSearch(
 
   const textProvider = getTextProvider();
   const imageProvider = getImageProvider();
-  let combinedProducts: NormalizedProduct[] = [];
-  let totalTextResults = 0;
-  let totalImageResults = 0;
+  const pinResults = await Promise.all(
+    pinSearches.map(async (pinSearch) => {
+      const { pin, analysis, imageUrl = pin.image_url } = pinSearch;
+      const queries = [analysis.balanced_query, analysis.broad_query, analysis.specific_query];
 
-  for (const pinSearch of pinSearches) {
-    const { pin, analysis, imageUrl = pin.image_url } = pinSearch;
-    const queries = [analysis.balanced_query, analysis.broad_query, analysis.specific_query];
+      const [textRaw, imageRaw] = await Promise.all([
+        textProvider.searchByTextQueries({
+          queries,
+          budget_min: filters.budget_min,
+          budget_max: filters.budget_max,
+          excluded_retailers: filters.excluded_retailers,
+          exclude_luxury: filters.exclude_luxury,
+        }),
+        imageUrl
+          ? imageProvider.searchByImage({
+              image_url: imageUrl,
+              budget_min: filters.budget_min,
+              budget_max: filters.budget_max,
+            })
+          : Promise.resolve([]),
+      ]);
 
-    const textRaw = await textProvider.searchByTextQueries({
-      queries,
-      budget_min: filters.budget_min,
-      budget_max: filters.budget_max,
-      excluded_retailers: filters.excluded_retailers,
-      exclude_luxury: filters.exclude_luxury,
-    });
-
-    const textNormalized = textProvider.normalizeProducts(textRaw);
-    totalTextResults += textNormalized.length;
-
-    let imageNormalized: NormalizedProduct[] = [];
-    if (imageUrl) {
-      const imageRaw = await imageProvider.searchByImage({
-        image_url: imageUrl,
+      const textNormalized = textProvider.normalizeProducts(textRaw);
+      const imageNormalized = imageProvider.normalizeProducts(imageRaw);
+      const rankingContext = {
         budget_min: filters.budget_min,
         budget_max: filters.budget_max,
-      });
-      imageNormalized = imageProvider.normalizeProducts(imageRaw);
-      totalImageResults += imageNormalized.length;
-    }
+        excluded_retailers: filters.excluded_retailers,
+        exclude_luxury: filters.exclude_luxury,
+        mode: filters.mode,
+        analysis_attributes: {
+          category: analysis.category,
+          primary_color: filters.color || analysis.primary_color,
+          silhouette: analysis.silhouette || undefined,
+          sleeve_length: filters.sleeve_preference || analysis.sleeve_length || undefined,
+          length: filters.length || analysis.length || undefined,
+          fit: analysis.fit || undefined,
+          neckline: analysis.neckline || undefined,
+          material_or_texture: analysis.material_or_texture || undefined,
+          strap_type: analysis.strap_type || undefined,
+          style_keywords: analysis.style_keywords,
+        },
+      };
 
-    const rankingContext = {
-      budget_min: filters.budget_min,
-      budget_max: filters.budget_max,
-      excluded_retailers: filters.excluded_retailers,
-      exclude_luxury: filters.exclude_luxury,
-      mode: filters.mode,
-      analysis_attributes: {
-        category: analysis.category,
-        primary_color: filters.color || analysis.primary_color,
-        silhouette: analysis.silhouette || undefined,
-        sleeve_length: filters.sleeve_preference || analysis.sleeve_length || undefined,
-        length: filters.length || analysis.length || undefined,
-        fit: analysis.fit || undefined,
-        neckline: analysis.neckline || undefined,
-        material_or_texture: analysis.material_or_texture || undefined,
-        strap_type: analysis.strap_type || undefined,
-        style_keywords: analysis.style_keywords,
-      },
-    };
+      const rankedProducts = rankByHeuristics(
+        dedupeByUrl([...textNormalized, ...imageNormalized]),
+        rankingContext
+      ).map((product) => ({
+        ...product,
+        board_id: boardId,
+        board_name: boardName,
+        source_pin_id: pin.id,
+        source_pin_title: pin.title,
+        source_pin_image_url: pin.image_url,
+        balanced_query: analysis.balanced_query,
+        match_reason: product.match_reason || generateMatchReason(product, rankingContext),
+      }));
 
-    const rankedProducts = rankByHeuristics(
-      dedupeByUrl([...textNormalized, ...imageNormalized]),
-      rankingContext
-    ).map((product) => ({
-      ...product,
-      board_id: boardId,
-      board_name: boardName,
-      source_pin_id: pin.id,
-      source_pin_title: pin.title,
-      source_pin_image_url: pin.image_url,
-      balanced_query: analysis.balanced_query,
-      match_reason: product.match_reason || generateMatchReason(product, rankingContext),
-    }));
+      return {
+        rankedProducts,
+        textResultCount: textNormalized.length,
+        imageResultCount: imageNormalized.length,
+      };
+    })
+  );
 
-    combinedProducts.push(...rankedProducts);
-  }
+  let combinedProducts: NormalizedProduct[] = pinResults.flatMap((result) => result.rankedProducts);
+  const totalTextResults = pinResults.reduce((sum, result) => sum + result.textResultCount, 0);
+  const totalImageResults = pinResults.reduce((sum, result) => sum + result.imageResultCount, 0);
 
   combinedProducts = dedupeByUrl(combinedProducts).sort(
     (a, b) => (b.match_score || 0) - (a.match_score || 0)

@@ -9,6 +9,8 @@ import type { BoardSearchRequest, SearchFilters } from '@/lib/types/products';
 import type { PinAnalysis, PinterestPin } from '@/lib/types/database';
 import { searchRequestSchema } from '@/lib/utils/validators';
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

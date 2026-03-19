@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { DM_Sans, JetBrains_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { TourProvider } from '@/components/tour/TourProvider';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -29,7 +30,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${dmSans.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <TooltipProvider>
-          {children}
+          <TourProvider>
+            {children}
+          </TourProvider>
           <Toaster richColors position="bottom-right" />
         </TooltipProvider>
       </body>

@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  compress: false,
+  serverExternalPackages: ['playwright-core'],
   images: {
     remotePatterns: [
       // Unsplash (mock data)
@@ -25,9 +25,5 @@ const nextConfig: NextConfig = {
     ],
   },
 };
-
-// #region agent log
-fetch('http://127.0.0.1:7577/ingest/a4e61bef-d74d-4cc1-8652-c2211ce496d5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'392286'},body:JSON.stringify({sessionId:'392286',runId:'startup',hypothesisId:'H2',location:'next.config.ts:28',message:'next config evaluated',data:{compressSetting:'compress' in nextConfig ? nextConfig.compress ?? null : 'unset',hasImages:Boolean(nextConfig.images)},timestamp:Date.now()})}).catch(()=>{});
-// #endregion
 
 export default nextConfig;
