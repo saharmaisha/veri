@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { trackAppEvent } from '@/lib/services/app-events';
-import { deleteSavedItem, getSavedItems, upsertSavedItem } from '@/lib/services/saved-items';
+import {
+  deleteSavedItem,
+  findDuplicateSavedItem,
+  getSavedItems,
+  upsertSavedItem,
+} from '@/lib/services/saved-items';
 import { savedItemCreateSchema, savedItemDeleteSchema } from '@/lib/utils/validators';
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -15,6 +20,14 @@ export async function GET() {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const productUrl = searchParams.get('product_url');
+
+    if (productUrl) {
+      const duplicate = await findDuplicateSavedItem(user.id, productUrl);
+      return NextResponse.json({ duplicate });
+    }
+
     const items = await getSavedItems(user.id);
     return NextResponse.json({ items });
   } catch (error) {

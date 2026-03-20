@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { ProductCard } from './ProductCard';
 import { Button } from '@/components/ui/button';
-import { X, Heart, ExternalLink, CheckCircle, RotateCcw } from 'lucide-react';
+import { CheckCircle, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import type { ProductResult } from '@/lib/types/database';
 
@@ -28,10 +28,38 @@ export function ProductSwipeDeck({
   canUndo = false,
 }: ProductSwipeDeckProps) {
   const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
+  const [showUndoPill, setShowUndoPill] = useState(false);
+  const undoTimeoutRef = useRef<number | null>(null);
 
   const currentProduct = products[currentIndex];
   const nextProduct = products[currentIndex + 1];
   const isFinished = currentIndex >= products.length;
+
+  const clearUndoTimeout = useCallback(() => {
+    if (undoTimeoutRef.current !== null) {
+      window.clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = null;
+    }
+  }, []);
+
+  const showTemporaryUndoPill = useCallback(() => {
+    if (!onUndo) return;
+
+    clearUndoTimeout();
+    setShowUndoPill(true);
+    undoTimeoutRef.current = window.setTimeout(() => {
+      setShowUndoPill(false);
+      undoTimeoutRef.current = null;
+    }, 6000);
+  }, [clearUndoTimeout, onUndo]);
+
+  const handleUndoClick = useCallback(() => {
+    if (!onUndo || !canUndo) return;
+
+    clearUndoTimeout();
+    setShowUndoPill(false);
+    onUndo();
+  }, [canUndo, clearUndoTimeout, onUndo]);
 
   const handleSwipe = useCallback(
     (direction: 'left' | 'right') => {
@@ -44,16 +72,29 @@ export function ProductSwipeDeck({
         } else {
           onSkip(currentProduct);
         }
+        showTemporaryUndoPill();
         setExitDirection(null);
       }, 200);
     },
-    [currentProduct, onSave, onSkip]
+    [currentProduct, onSave, onSkip, showTemporaryUndoPill]
   );
+
+  useEffect(() => {
+    return () => clearUndoTimeout();
+  }, [clearUndoTimeout]);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndoClick();
+      } else if (e.key === 'ArrowLeft') {
         handleSwipe('left');
       } else if (e.key === 'ArrowRight') {
         handleSwipe('right');
@@ -62,7 +103,7 @@ export function ProductSwipeDeck({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSwipe]);
+  }, [handleSwipe, handleUndoClick]);
 
   if (isFinished) {
     return (
@@ -76,6 +117,18 @@ export function ProductSwipeDeck({
             You&apos;ve reviewed all {products.length} products. Head back to try another board.
           </p>
         </div>
+        {onUndo && canUndo && (
+          <Button
+            data-tour="undo-button"
+            variant="secondary"
+            size="sm"
+            className="min-h-11 rounded-full px-4 gap-2"
+            onClick={handleUndoClick}
+          >
+            <RotateCcw className="h-4 w-4" />
+            Undo last action
+          </Button>
+        )}
         <Link href="/boards">
           <Button variant="outline" size="sm" className="mt-2">
             Back to boards
@@ -96,7 +149,7 @@ export function ProductSwipeDeck({
         {currentIndex + 1} / {products.length}
       </div>
 
-      <div className="relative w-full max-w-sm h-[560px]">
+      <div className="relative w-full max-w-sm h-[min(520px,calc(100vh-320px))]" data-tour="swipe-deck">
         {nextProduct && (
           <div className="absolute inset-0 scale-[0.96] opacity-50 pointer-events-none">
             <ProductCard product={nextProduct} />
@@ -114,56 +167,31 @@ export function ProductSwipeDeck({
         </AnimatePresence>
       </div>
 
-      <div className="flex items-center gap-4">
-        {onUndo && (
-          <Button
-            data-tour="undo-button"
-            variant="ghost"
-            size="sm"
-            className="gap-2"
-            onClick={onUndo}
-            disabled={!canUndo}
+      <AnimatePresence>
+        {showUndoPill && onUndo && canUndo && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
           >
-            <RotateCcw className="h-4 w-4" />
-            Undo
-          </Button>
-        )}
-        <Button
-          variant="outline"
-          size="lg"
-          className="h-12 w-12 rounded-full p-0"
-          onClick={() => handleSwipe('left')}
-          disabled={isFinished}
-        >
-          <X className="h-5 w-5 text-muted-foreground" />
-        </Button>
-
-        {currentProduct && (
-          <a
-            href={currentProduct.product_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-tour="external-link"
-          >
-            <Button variant="ghost" size="sm" className="h-9 w-9 rounded-full p-0">
-              <ExternalLink className="h-3.5 w-3.5" />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-h-11 rounded-full px-4 gap-2 shadow-sm relative overflow-hidden"
+              onClick={handleUndoClick}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Undo
+              <motion.div
+                className="absolute bottom-0 left-0 h-0.5 bg-foreground/20"
+                initial={{ width: '100%' }}
+                animate={{ width: '0%' }}
+                transition={{ duration: 6, ease: 'linear' }}
+              />
             </Button>
-          </a>
+          </motion.div>
         )}
-
-        <Button
-          size="lg"
-          className="h-12 w-12 rounded-full p-0"
-          onClick={() => handleSwipe('right')}
-          disabled={isFinished}
-        >
-          <Heart className="h-5 w-5" />
-        </Button>
-      </div>
-
-      <p className="text-[11px] text-muted-foreground" data-tour="swipe-gesture-demo">
-        Swipe or tap &mdash; right to save, left to skip
-      </p>
+      </AnimatePresence>
     </div>
   );
 }

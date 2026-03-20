@@ -10,7 +10,7 @@ import { ArrowLeft, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useSwipeStore } from '@/store/swipe-store';
-import type { ProductResult } from '@/lib/types/database';
+import type { ProductResult, SavedItemWithProduct } from '@/lib/types/database';
 import { useTourTrigger } from '@/components/tour/useTourTrigger';
 
 export default function ResultsPage() {
@@ -25,7 +25,6 @@ export default function ResultsPage() {
     products,
     currentIndex,
     searchRun,
-    analysis,
     analyses,
     selectedPins,
     board,
@@ -119,7 +118,7 @@ export default function ResultsPage() {
     }).catch(() => {});
   }, [currentIndex, history, products.length, searchRun?.id]);
 
-  const handleSave = useCallback(
+  const persistSave = useCallback(
     async (product: ProductResult) => {
       saveProduct(product.id);
       nextCard();
@@ -151,6 +150,55 @@ export default function ResultsPage() {
       }
     },
     [saveProduct, nextCard, searchRun, board, analyses, unsaveProduct]
+  );
+
+  const checkDuplicateSave = useCallback(async (product: ProductResult) => {
+    const response = await fetch(`/api/saved?product_url=${encodeURIComponent(product.product_url)}`);
+    if (!response.ok) {
+      throw new Error('Failed to check saved duplicates');
+    }
+
+    const data = (await response.json()) as { duplicate: SavedItemWithProduct | null };
+    return data.duplicate;
+  }, []);
+
+  const handleSave = useCallback(
+    async (product: ProductResult) => {
+      try {
+        const duplicate = await checkDuplicateSave(product);
+        if (duplicate) {
+          const referenceLabel =
+            duplicate.pin.title ||
+            duplicate.product.source_pin_title ||
+            duplicate.product.board_name ||
+            'another pin';
+
+          if (duplicate.product_result_id === product.id) {
+            toast.message('Already in your saved list', {
+              description: `You already saved this from ${referenceLabel}.`,
+            });
+            return;
+          }
+
+          toast.warning('Already in your saved list', {
+            description: `You already saved a matching item from ${referenceLabel}.`,
+            action: {
+              label: 'Save anyway',
+              onClick: () => {
+                void persistSave(product);
+              },
+            },
+            duration: 8000,
+          });
+          return;
+        }
+      } catch {
+        // Fall back to saving if duplicate lookup fails.
+      }
+
+      await persistSave(product);
+    },
+    [checkDuplicateSave, persistSave]
   );
 
   const handleSkip = useCallback(

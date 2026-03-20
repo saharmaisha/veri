@@ -23,6 +23,42 @@ export async function getSavedItems(userId: string): Promise<SavedItemWithProduc
   return (data as SavedItemWithProduct[]) || [];
 }
 
+export async function findDuplicateSavedItem(
+  userId: string,
+  productUrl: string
+): Promise<SavedItemWithProduct | null> {
+  const supabase = await createClient();
+  const { data: matchingProducts, error: productError } = await supabase
+    .from('product_results')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('product_url', productUrl);
+
+  if (productError) {
+    throw new Error(productError.message);
+  }
+
+  const productResultIds = (matchingProducts || []).map((product) => product.id);
+  if (productResultIds.length === 0) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('saved_items')
+    .select(SAVED_ITEM_SELECT)
+    .eq('user_id', userId)
+    .in('product_result_id', productResultIds)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as SavedItemWithProduct | null) ?? null;
+}
+
 export async function upsertSavedItem(input: {
   userId: string;
   productResultId: string;
