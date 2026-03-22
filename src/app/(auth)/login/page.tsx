@@ -101,6 +101,9 @@ export default function LoginPage() {
                       autoFocus
                     />
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Currently available to users with a .edu email address.
+                  </p>
                 </div>
                 {error && (
                   <p className="text-sm text-destructive">{error}</p>

@@ -89,6 +89,15 @@ export default function BoardsPage() {
   const fetchBoards = async () => {
     try {
       const res = await fetch('/api/pinterest/boards');
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        window.location.href = '/login';
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to load boards');
+      }
       const data = await res.json();
       setBoards(data.boards || []);
     } catch {
@@ -102,6 +111,11 @@ export default function BoardsPage() {
     setSyncing(true);
     try {
       const res = await fetch('/api/pinterest/boards', { method: 'POST' });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        window.location.href = '/login';
+        return;
+      }
       const data = await res.json();
 
       if (!res.ok) {
@@ -169,6 +183,11 @@ export default function BoardsPage() {
         },
         body: JSON.stringify({ board_url: boardUrl }),
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        window.location.href = '/login';
+        return;
+      }
       const data = await res.json();
 
       if (!res.ok) {
