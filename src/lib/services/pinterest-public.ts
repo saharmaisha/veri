@@ -13,6 +13,8 @@ const BOARD_FEED_RESOURCE_PATH = '/resource/BoardFeedResource/get/';
 const MAX_SCROLL_ITERATIONS = 80;
 const MAX_STALLED_ITERATIONS = 12;
 const SCROLL_DELAY_MS = 750;
+const SMALL_PIN_GAP_THRESHOLD = 3;
+const EXTRA_TAIL_SCROLL_ITERATIONS = 3;
 const PINTEREST_BROWSER_VIEWPORT = { width: 1280, height: 2200 };
 const PINTEREST_BROWSER_TIMEOUT_SECONDS = 600;
 
@@ -107,6 +109,10 @@ function stripSectionSuffix(value: string): string {
 
 function stripPinSectionSuffix(value: string): string {
   return stripSectionSuffix(value);
+}
+
+function withSourceScopedPinId(pinId: string, source: PublicBoardSourceInfo): string {
+  return source.sectionKey ? `${pinId}::section:${source.sectionKey}` : pinId;
 }
 
 function normalizePath(pathname: string): {
@@ -625,6 +631,29 @@ async function withPinterestBrowser<T>(callback: (page: Page) => Promise<T>): Pr
   }
 }
 
+async function collectVisiblePinterestPinIds(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const ids = new Set<string>();
+
+    document.querySelectorAll('a[href*="/pin/"]').forEach((anchor) => {
+      const href = anchor.getAttribute('href');
+      if (!href) return;
+
+      try {
+        const url = new URL(href, 'https://www.pinterest.com');
+        const match = url.pathname.match(/\/pin\/(\d+)/i);
+        if (match?.[1]) {
+          ids.add(match[1]);
+        }
+      } catch {
+        // Ignore malformed anchor URLs.
+      }
+    });
+
+    return Array.from(ids);
+  });
+}
+
 async function scrapePublicPinterestBoardPage(
   page: Page,
   source: PublicBoardSourceInfo,
@@ -635,7 +664,17 @@ async function scrapePublicPinterestBoardPage(
   const pinMap = new Map<string, ParsedPublicPin>(
     fallbackParsed.pins.map((pin) => [pin.pinterestPinId, pin])
   );
+  const domPinIds = new Set<string>(fallbackParsed.pins.map((pin) => pin.pinterestPinId));
   const responseTasks = new Set<Promise<void>>();
+  const rootBoardId = stripSectionSuffix(fallbackParsed.board.pinterestBoardId);
+
+  const updateDomPinIds = async () => {
+    const visiblePinIds = await collectVisiblePinterestPinIds(page);
+
+    for (const pinId of visiblePinIds) {
+      domPinIds.add(withSourceScopedPinId(pinId, source));
+    }
+  };
 
   const handleResponse = (response: Response) => {
     if (!response.url().includes(BOARD_FEED_RESOURCE_PATH)) {
@@ -646,29 +685,33 @@ async function scrapePublicPinterestBoardPage(
       const requestInfo = getBoardFeedRequestInfo(response.url());
 
       if (
-        requestInfo.boardId !== stripSectionSuffix(fallbackParsed.board.pinterestBoardId) ||
+        requestInfo.boardId !== rootBoardId ||
         !isMatchingFeedSourcePath(requestInfo.sourcePath, source)
       ) {
         return;
       }
 
-      const payload = (await response.json()) as PinterestResourceResponse;
-      const data = payload.resource_response?.data;
+      try {
+        const payload = (await response.json()) as PinterestResourceResponse;
+        const data = payload.resource_response?.data;
 
-      if (!Array.isArray(data)) {
-        return;
-      }
-
-      for (const item of data) {
-        const parsedPin = parseBoardPin(
-          item as JsonRecord,
-          stripSectionSuffix(fallbackParsed.board.pinterestBoardId),
-          source
-        );
-
-        if (parsedPin) {
-          pinMap.set(parsedPin.pinterestPinId, parsedPin);
+        if (!Array.isArray(data)) {
+          return;
         }
+
+        for (const item of data) {
+          const parsedPin = parseBoardPin(item as JsonRecord, rootBoardId, source);
+
+          if (parsedPin) {
+            pinMap.set(parsedPin.pinterestPinId, parsedPin);
+          }
+        }
+      } catch (error) {
+        console.warn('Pinterest board feed parsing failed.', {
+          url: response.url(),
+          source: source.normalizedUrl,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     })().finally(() => {
       responseTasks.delete(task);
@@ -685,17 +728,40 @@ async function scrapePublicPinterestBoardPage(
       timeout: 60000,
     });
     await page.waitForSelector('a[href*="/pin/"]', { timeout: 15000 });
+    await Promise.allSettled([...responseTasks]);
+    await updateDomPinIds();
 
     let stalledIterations = 0;
-    let lastPinCount = pinMap.size;
+    let lastObservedPinCount = Math.max(pinMap.size, domPinIds.size);
+    let extraTailIterationsRemaining = 0;
+    let tailPassActivated = false;
 
-    for (
-      let iteration = 0;
-      iteration < MAX_SCROLL_ITERATIONS && stalledIterations < MAX_STALLED_ITERATIONS;
-      iteration += 1
-    ) {
-      if (targetPinCount && pinMap.size >= targetPinCount) {
+    const activateTailPassIfEligible = (observedPinCount: number) => {
+      if (tailPassActivated || !targetPinCount) {
+        return;
+      }
+
+      const remainingPins = targetPinCount - observedPinCount;
+      if (remainingPins > 0 && remainingPins <= SMALL_PIN_GAP_THRESHOLD) {
+        tailPassActivated = true;
+        extraTailIterationsRemaining = EXTRA_TAIL_SCROLL_ITERATIONS;
+      }
+    };
+
+    activateTailPassIfEligible(lastObservedPinCount);
+
+    for (let iteration = 0; iteration < MAX_SCROLL_ITERATIONS; iteration += 1) {
+      const observedPinCount = Math.max(pinMap.size, domPinIds.size);
+      if (targetPinCount && observedPinCount >= targetPinCount) {
         break;
+      }
+
+      if (stalledIterations >= MAX_STALLED_ITERATIONS) {
+        if (extraTailIterationsRemaining <= 0) {
+          break;
+        }
+
+        extraTailIterationsRemaining -= 1;
       }
 
       await page.evaluate(() => {
@@ -703,13 +769,16 @@ async function scrapePublicPinterestBoardPage(
       });
       await page.waitForTimeout(SCROLL_DELAY_MS);
       await Promise.allSettled([...responseTasks]);
+      await updateDomPinIds();
 
-      const currentPinCount = pinMap.size;
-      if (currentPinCount === lastPinCount) {
+      const currentObservedPinCount = Math.max(pinMap.size, domPinIds.size);
+      activateTailPassIfEligible(currentObservedPinCount);
+
+      if (currentObservedPinCount === lastObservedPinCount) {
         stalledIterations += 1;
       } else {
         stalledIterations = 0;
-        lastPinCount = currentPinCount;
+        lastObservedPinCount = currentObservedPinCount;
       }
     }
 
@@ -831,18 +900,26 @@ async function scrapeSectionPage(
         resolvedBoardId = requestInfo.boardId;
       }
 
-      const payload = (await response.json()) as PinterestResourceResponse;
-      const data = payload.resource_response?.data;
-      if (!Array.isArray(data)) {
-        return;
-      }
-
-      const expectedBoardId = resolvedBoardId ?? rootBoardId;
-      for (const item of data) {
-        const parsedPin = parseBoardPin(item as JsonRecord, expectedBoardId, source);
-        if (parsedPin) {
-          sectionPinIds.add(stripPinSectionSuffix(parsedPin.pinterestPinId));
+      try {
+        const payload = (await response.json()) as PinterestResourceResponse;
+        const data = payload.resource_response?.data;
+        if (!Array.isArray(data)) {
+          return;
         }
+
+        const expectedBoardId = resolvedBoardId ?? rootBoardId;
+        for (const item of data) {
+          const parsedPin = parseBoardPin(item as JsonRecord, expectedBoardId, source);
+          if (parsedPin) {
+            sectionPinIds.add(stripPinSectionSuffix(parsedPin.pinterestPinId));
+          }
+        }
+      } catch (error) {
+        console.warn('Pinterest section feed parsing failed.', {
+          url: response.url(),
+          source: section.url,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     })().finally(() => {
       responseTasks.delete(task);
@@ -858,26 +935,7 @@ async function scrapeSectionPage(
     await page.waitForSelector('a[href*="/pin/"]', { timeout: 15000 });
 
     const collectDomPinIds = async () => {
-      const pinIds = await page.evaluate(() => {
-        const ids = new Set<string>();
-
-        document.querySelectorAll('a[href*="/pin/"]').forEach((anchor) => {
-          const href = anchor.getAttribute('href');
-          if (!href) return;
-
-          try {
-            const url = new URL(href, 'https://www.pinterest.com');
-            const match = url.pathname.match(/\/pin\/(\d+)/i);
-            if (match?.[1]) {
-              ids.add(match[1]);
-            }
-          } catch {
-            // ignore malformed anchor URLs
-          }
-        });
-
-        return Array.from(ids);
-      });
+      const pinIds = await collectVisiblePinterestPinIds(page);
 
       for (const pinId of pinIds) {
         sectionPinIds.add(pinId);
