@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { AnimatedHero } from '@/components/landing/AnimatedHero';
 import { AnimatedHowItWorks } from '@/components/landing/AnimatedHowItWorks';
+import { SignOutButton } from '@/components/landing/SignOutButton';
 
 export default async function LandingPage() {
   const supabase = await createClient();
@@ -33,6 +34,7 @@ export default async function LandingPage() {
             <Link href="/boards">
               <Button size="sm">My boards</Button>
             </Link>
+            <SignOutButton />
           </div>
         ) : (
           <Link href="/login">

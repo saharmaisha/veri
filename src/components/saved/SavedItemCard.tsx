@@ -45,8 +45,13 @@ export function SavedItemCard({
                 <span className="text-[10px] text-muted-foreground group-hover:text-primary transition-colors">Inspiration</span>
               </Link>
             )}
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-20 h-24 relative bg-muted rounded overflow-hidden ring-1 ring-border">
+            <a
+              href={product.product_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center gap-1 group"
+            >
+              <div className="w-20 h-24 relative bg-muted rounded overflow-hidden ring-1 ring-border group-hover:ring-primary transition-colors">
                 <Image
                   src={product.image_url}
                   alt={product.title}
@@ -55,8 +60,10 @@ export function SavedItemCard({
                   sizes="80px"
                 />
               </div>
-              <span className="text-[10px] text-muted-foreground">Product</span>
-            </div>
+              <span className="text-[10px] text-muted-foreground group-hover:text-primary transition-colors">
+                Product
+              </span>
+            </a>
           </div>
 
           {/* Details section */}
