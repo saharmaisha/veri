@@ -30,7 +30,7 @@ export function SavedItemCard({
           <div className="flex gap-2 shrink-0 p-3 pr-0">
             {hasPinImage && (
               <Link
-                href={`/pins/${product.source_pin_id}?boardId=${product.board_id}`}
+                href={`/boards/${product.board_id}?highlightPin=${product.source_pin_id}`}
                 className="flex flex-col items-center gap-1 group"
               >
                 <div className="w-20 h-24 relative bg-muted rounded overflow-hidden ring-1 ring-border group-hover:ring-primary transition-colors">

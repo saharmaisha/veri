@@ -7,7 +7,6 @@ import 'driver.js/dist/driver.css';
 export type TourPage =
   | 'boards'
   | 'boardDetail'
-  | 'pinDetail'
   | 'results'
   | 'saved'
   | 'settings';
@@ -15,7 +14,6 @@ export type TourPage =
 interface TourState {
   boards: boolean;
   boardDetail: boolean;
-  pinDetail: boolean;
   results: boolean;
   saved: boolean;
   settings: boolean;
@@ -36,7 +34,6 @@ const STORAGE_KEY = 'swipe_tour_state';
 const defaultState: TourState = {
   boards: false,
   boardDetail: false,
-  pinDetail: false,
   results: false,
   saved: false,
   settings: false,

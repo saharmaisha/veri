@@ -26,7 +26,6 @@ const navLinks = [
 function getTourPageFromPath(pathname: string): TourPage | null {
   if (pathname === '/boards') return 'boards';
   if (pathname.startsWith('/boards/')) return 'boardDetail';
-  if (pathname.startsWith('/pins/')) return 'pinDetail';
   if (pathname.startsWith('/results/')) return 'results';
   if (pathname === '/saved') return 'saved';
   if (pathname === '/settings') return 'settings';

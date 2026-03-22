@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { PixelCrop } from 'react-image-crop';
 import { toast } from 'sonner';
@@ -24,8 +24,11 @@ const ALL_SECTIONS = '__all__';
 
 export default function BoardDetailPage() {
   const params = useParams();
+  const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const boardId = params.id as string;
+  const highlightPinId = searchParams.get('highlightPin');
   const setSearchData = useSwipeStore((state) => state.setSearchData);
   const [pins, setPins] = useState<PinterestPin[]>([]);
   const [board, setBoard] = useState<PinterestBoard | null>(null);
@@ -40,6 +43,7 @@ export default function BoardDetailPage() {
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropModalPin, setCropModalPin] = useState<PinterestPin | null>(null);
   const [pinCrops, setPinCrops] = useState<Map<string, PixelCrop>>(new Map());
+  const [highlightedPinId, setHighlightedPinId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useTourTrigger('boardDetail');
@@ -166,10 +170,59 @@ export default function BoardDetailPage() {
 
   // Set initial view mode when pins load
   useEffect(() => {
-    if (!loading) {
-      setViewMode(sections.length > 0 ? 'sections' : 'pins');
+    if (loading) {
+      return;
     }
-  }, [loading, sections.length]);
+
+    if (highlightPinId) {
+      setActiveSection(ALL_SECTIONS);
+      setSelectedPinIds(new Set());
+      setViewMode('pins');
+      return;
+    }
+
+    setViewMode(sections.length > 0 ? 'sections' : 'pins');
+  }, [highlightPinId, loading, sections.length]);
+
+  const clearHighlightParam = useCallback(() => {
+    if (!searchParams.has('highlightPin')) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('highlightPin');
+    const nextUrl = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (loading || !highlightPinId || viewMode !== 'pins') {
+      return;
+    }
+
+    const pinExists = pins.some((pin) => pin.id === highlightPinId);
+    if (!pinExists) {
+      clearHighlightParam();
+      return;
+    }
+
+    const pinElement = document.getElementById(`pin-${highlightPinId}`);
+    if (!pinElement) {
+      return;
+    }
+
+    setHighlightedPinId(highlightPinId);
+    pinElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedPinId((current) => (current === highlightPinId ? null : current));
+      clearHighlightParam();
+    }, 2200);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [clearHighlightParam, highlightPinId, loading, pins, viewMode]);
 
   const allPinsPreviewImages = useMemo(() => {
     return pins.slice(0, 4).map((pin) => pin.image_url);
@@ -498,6 +551,7 @@ export default function BoardDetailPage() {
                     selected={selectedPinIds.has(pin.id)}
                     showSelection
                     hasCrop={pinCrops.has(pin.id)}
+                    highlighted={highlightedPinId === pin.id}
                     onToggleSelect={togglePinSelection}
                     onCropClick={handleCropClick}
                     data-tour={index === 0 ? 'pin-card' : undefined}

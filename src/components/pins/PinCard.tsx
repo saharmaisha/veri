@@ -16,6 +16,7 @@ interface PinCardProps {
   selected?: boolean;
   showSelection?: boolean;
   hasCrop?: boolean;
+  highlighted?: boolean;
   onToggleSelect?: (pinId: string, selected: boolean) => void;
   onCropClick?: (pinId: string) => void;
   'data-tour'?: string;
@@ -26,6 +27,7 @@ export function PinCard({
   selected = false,
   showSelection = false,
   hasCrop = false,
+  highlighted = false,
   onToggleSelect,
   onCropClick,
   'data-tour': dataTour,
@@ -41,11 +43,13 @@ export function PinCard({
 
   return (
     <Card
+      id={`pin-${pin.id}`}
       data-tour={dataTour}
       className={cn(
         'overflow-hidden transition-all group relative',
         showSelection && 'cursor-pointer',
         selected && 'ring-2 ring-foreground',
+        highlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse',
       )}
     >
       <div
