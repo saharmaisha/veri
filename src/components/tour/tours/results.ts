@@ -2,10 +2,10 @@ import type { DriveStep } from 'driver.js';
 
 export const steps: DriveStep[] = [
   {
-    element: '[data-tour="swipe-deck"]',
+    element: '[data-tour="action-buttons"]',
     popover: {
-      title: 'Swipe to decide',
-      description: 'Drag RIGHT to SAVE items you love. Drag LEFT to SKIP. You can also use arrow keys, and Cmd/Ctrl+Z to undo.',
+      title: 'Save or skip',
+      description: 'Click ❤️ to SAVE or ✕ to SKIP. Use ← → arrow keys for quick navigation. Cmd/Ctrl+Z to undo.',
       side: 'bottom',
       align: 'center',
     },

@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { ProductCard } from './ProductCard';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, RotateCcw } from 'lucide-react';
+import { CheckCircle, RotateCcw, X, Heart } from 'lucide-react';
 import Link from 'next/link';
 import type { ProductResult } from '@/lib/types/database';
 
@@ -29,6 +29,7 @@ export function ProductSwipeDeck({
 }: ProductSwipeDeckProps) {
   const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
   const [showUndoPill, setShowUndoPill] = useState(false);
+  const [keyboardFlash, setKeyboardFlash] = useState<'left' | 'right' | null>(null);
   const undoTimeoutRef = useRef<number | null>(null);
 
   const currentProduct = products[currentIndex];
@@ -95,8 +96,12 @@ export function ProductSwipeDeck({
         e.preventDefault();
         handleUndoClick();
       } else if (e.key === 'ArrowLeft') {
+        setKeyboardFlash('left');
+        setTimeout(() => setKeyboardFlash(null), 150);
         handleSwipe('left');
       } else if (e.key === 'ArrowRight') {
+        setKeyboardFlash('right');
+        setTimeout(() => setKeyboardFlash(null), 150);
         handleSwipe('right');
       }
     };
@@ -165,6 +170,46 @@ export function ProductSwipeDeck({
             />
           )}
         </AnimatePresence>
+      </div>
+
+      {/* Action buttons for desktop */}
+      <div className="flex items-center justify-center gap-8" data-tour="action-buttons">
+        <div className="flex flex-col items-center gap-1">
+          <Button
+            variant="outline"
+            size="lg"
+            className={`h-14 w-14 rounded-full border-2 transition-all ${
+              keyboardFlash === 'left'
+                ? 'scale-110 border-destructive bg-destructive/10'
+                : 'hover:border-destructive hover:bg-destructive/10'
+            }`}
+            onClick={() => handleSwipe('left')}
+          >
+            <X className="h-6 w-6 text-destructive" />
+          </Button>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 text-[10px] bg-muted rounded border">←</kbd>
+            Skip
+          </span>
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <Button
+            variant="outline"
+            size="lg"
+            className={`h-14 w-14 rounded-full border-2 transition-all ${
+              keyboardFlash === 'right'
+                ? 'scale-110 border-green-500 bg-green-500/10'
+                : 'hover:border-green-500 hover:bg-green-500/10'
+            }`}
+            onClick={() => handleSwipe('right')}
+          >
+            <Heart className="h-6 w-6 text-green-500" />
+          </Button>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            Save
+            <kbd className="px-1.5 py-0.5 text-[10px] bg-muted rounded border">→</kbd>
+          </span>
+        </div>
       </div>
 
       <AnimatePresence>
