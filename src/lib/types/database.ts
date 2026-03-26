@@ -118,6 +118,7 @@ export interface ProductResult {
   currency: string;
   image_url: string;
   product_url: string;
+  retailer_url: string | null;
   match_reason: string | null;
   match_score: number | null;
   board_id?: string | null;

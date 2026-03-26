@@ -187,6 +187,7 @@ export async function orchestrateSearch(
           currency: p.currency,
           image_url: p.image_url,
           product_url: p.product_url,
+          retailer_url: p.retailer_url || null,
           match_reason: p.match_reason,
           match_score: p.match_score,
           board_id: p.board_id || null,

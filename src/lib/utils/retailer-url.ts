@@ -1,0 +1,92 @@
+const RETAILER_DOMAINS: Record<string, string> = {
+  'nordstrom': 'nordstrom.com',
+  'nordstrom rack': 'nordstromrack.com',
+  'asos': 'asos.com',
+  'zara': 'zara.com',
+  'h&m': 'hm.com',
+  'mango': 'shop.mango.com',
+  'uniqlo': 'uniqlo.com',
+  'gap': 'gap.com',
+  'old navy': 'oldnavy.gap.com',
+  'banana republic': 'bananarepublic.gap.com',
+  'target': 'target.com',
+  'walmart': 'walmart.com',
+  'amazon': 'amazon.com',
+  'amazon.com': 'amazon.com',
+  'shein': 'shein.com',
+  'forever 21': 'forever21.com',
+  'urban outfitters': 'urbanoutfitters.com',
+  'free people': 'freepeople.com',
+  'anthropologie': 'anthropologie.com',
+  'revolve': 'revolve.com',
+  'net-a-porter': 'net-a-porter.com',
+  'farfetch': 'farfetch.com',
+  'ssense': 'ssense.com',
+  'shopbop': 'shopbop.com',
+  'saks fifth avenue': 'saksfifthavenue.com',
+  'saks off 5th': 'saksoff5th.com',
+  'neiman marcus': 'neimanmarcus.com',
+  'bloomingdale\'s': 'bloomingdales.com',
+  'bloomingdales': 'bloomingdales.com',
+  'macy\'s': 'macys.com',
+  'macys': 'macys.com',
+  'poshmark': 'poshmark.com',
+  'depop': 'depop.com',
+  'thredup': 'thredup.com',
+  'the realreal': 'therealreal.com',
+  'lulus': 'lulus.com',
+  'princess polly': 'princesspolly.com',
+  'showpo': 'showpo.com',
+  'prettylittlething': 'prettylittlething.com',
+  'boohoo': 'boohoo.com',
+  'missguided': 'missguided.com',
+  'fashion nova': 'fashionnova.com',
+  'abercrombie & fitch': 'abercrombie.com',
+  'abercrombie': 'abercrombie.com',
+  'hollister': 'hollister.com',
+  'j.crew': 'jcrew.com',
+  'j. crew': 'jcrew.com',
+  'everlane': 'everlane.com',
+  'reformation': 'thereformation.com',
+  'cos': 'cos.com',
+  '& other stories': 'stories.com',
+  'other stories': 'stories.com',
+  'topshop': 'topshop.com',
+  'river island': 'riverisland.com',
+  'american eagle': 'ae.com',
+  'aerie': 'ae.com',
+  'nike': 'nike.com',
+  'adidas': 'adidas.com',
+  'lululemon': 'lululemon.com',
+  'athleta': 'athleta.gap.com',
+  'express': 'express.com',
+  'white house black market': 'whitehouseblackmarket.com',
+  'chico\'s': 'chicos.com',
+  'torrid': 'torrid.com',
+  'eloquii': 'eloquii.com',
+  'rent the runway': 'renttherunway.com',
+  'stitch fix': 'stitchfix.com',
+  'lucy in the sky': 'lucyinthesky.com',
+  'windsor': 'windsorstore.com',
+  'tobi': 'tobi.com',
+  'altar\'d state': 'altardstate.com',
+  'francesca\'s': 'francescas.com',
+  'modcloth': 'modcloth.com',
+  'etsy': 'etsy.com',
+  'ebay': 'ebay.com',
+};
+
+export function getRetailerUrl(retailerName: string, retailerUrl?: string | null): string | null {
+  if (retailerUrl) {
+    try {
+      const u = new URL(retailerUrl);
+      return `${u.protocol}//${u.hostname}`;
+    } catch {
+      return null;
+    }
+  }
+
+  const key = retailerName.toLowerCase().trim();
+  const domain = RETAILER_DOMAINS[key];
+  return domain ? `https://www.${domain}` : null;
+}

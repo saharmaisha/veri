@@ -3,9 +3,10 @@
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Trash2 } from 'lucide-react';
+import { ExternalLink, Store, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import type { ProductResult } from '@/lib/types/database';
+import { getRetailerUrl } from '@/lib/utils/retailer-url';
 
 interface SavedItemCardProps {
   product: ProductResult;
@@ -21,6 +22,7 @@ export function SavedItemCard({
   'data-tour': dataTour,
 }: SavedItemCardProps) {
   const hasPinImage = product.source_pin_image_url && product.source_pin_id && product.board_id;
+  const brandUrl = getRetailerUrl(product.retailer, product.retailer_url);
 
   return (
     <Card data-tour={dataTour} className="overflow-hidden">
@@ -98,6 +100,17 @@ export function SavedItemCard({
                 <ExternalLink className="h-3 w-3" />
                 View product
               </a>
+              {brandUrl && (
+                <a
+                  href={brandUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Store className="h-3 w-3" />
+                  Visit {product.retailer}
+                </a>
+              )}
               <span className="text-xs text-muted-foreground">
                 Saved {formatDate(savedAt)}
               </span>

@@ -16,6 +16,7 @@ export interface NormalizedProduct {
   currency: string;
   image_url: string;
   product_url: string;
+  retailer_url?: string | null;
   match_reason: string;
   match_score: number;
   board_id?: string | null;

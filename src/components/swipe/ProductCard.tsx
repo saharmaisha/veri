@@ -1,64 +1,29 @@
 'use client';
 
-import Image from 'next/image';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Store } from 'lucide-react';
 import type { ProductResult } from '@/lib/types/database';
+import { getRetailerUrl } from '@/lib/utils/retailer-url';
 
 interface ProductCardProps {
   product: ProductResult;
 }
 
-const WHITELISTED_PATTERNS = [
-  'images.unsplash.com',
-  'pinimg.com',
-  'gstatic.com',
-  'googleusercontent.com',
-  'ggpht.com',
-  'asos-media.com',
-  'zara.com',
-  'hm.com',
-  'gap.com',
-  'nordstrom.com',
-  'target.com',
-  'uniqlo.com',
-  'mango.com',
-];
-
-function isWhitelisted(url: string): boolean {
-  try {
-    const hostname = new URL(url).hostname;
-    return WHITELISTED_PATTERNS.some((pattern) => hostname.endsWith(pattern));
-  } catch {
-    return false;
-  }
-}
-
 export function ProductCard({ product }: ProductCardProps) {
-  const useNextImage = !!product.image_url && isWhitelisted(product.image_url);
+  const brandUrl = getRetailerUrl(product.retailer, product.retailer_url);
 
   return (
     <div className="bg-card rounded-2xl shadow-lg overflow-hidden border w-full max-w-sm mx-auto">
-      <div className="aspect-[3/4] relative bg-muted">
-        {useNextImage ? (
-          <Image
-            src={product.image_url}
-            alt={product.title}
-            fill
-            className="object-cover select-none pointer-events-none"
-            sizes="(max-width: 768px) 100vw, 400px"
-            priority
-            draggable={false}
-          />
-        ) : product.image_url ? (
+      <div className="bg-muted flex items-center justify-center">
+        {product.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.image_url}
             alt={product.title}
-            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+            className="w-full max-h-[40dvh] object-contain select-none pointer-events-none"
             draggable={false}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
+          <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
             Image unavailable
           </div>
         )}
@@ -79,16 +44,33 @@ export function ProductCard({ product }: ProductCardProps) {
           </p>
         )}
 
-        <a
-          href={product.product_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ExternalLink className="h-3 w-3" />
-          View on {product.retailer || 'store'}
-        </a>
+        <div className="flex items-center gap-3">
+          <a
+            href={product.product_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink className="h-3 w-3" />
+            View on {product.retailer || 'store'}
+          </a>
+          {brandUrl && (
+            <>
+              <span className="text-muted-foreground/40">|</span>
+              <a
+                href={brandUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Store className="h-3 w-3" />
+                Visit {product.retailer}
+              </a>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

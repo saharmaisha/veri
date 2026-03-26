@@ -129,6 +129,7 @@ export class SerpApiTextShoppingProvider implements ShoppingProvider {
             price_text: r.price || '',
             image_url: r.thumbnail || '',
             product_url: r.product_link || r.link || '',
+            retailer_url: r.link || '',
           }));
 
           // Cache the results
@@ -176,6 +177,7 @@ export class SerpApiTextShoppingProvider implements ShoppingProvider {
         currency: (r.currency as string) || 'USD',
         image_url: (r.image_url as string) || '',
         product_url: (r.product_url as string) || '',
+        retailer_url: (r.retailer_url as string) || null,
         match_reason: '',
         match_score: 0.65,
       }));
