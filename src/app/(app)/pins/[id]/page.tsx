@@ -16,8 +16,6 @@ import Link from 'next/link';
 import { useSwipeStore } from '@/store/swipe-store';
 import type { PinterestPin, PinAnalysis } from '@/lib/types/database';
 import type { PixelCrop } from 'react-image-crop';
-import { useTourTrigger } from '@/components/tour/useTourTrigger';
-
 export default function PinDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -35,8 +33,6 @@ export default function PinDetailPage() {
   const [crop, setCrop] = useState<PixelCrop | null>(null);
 
   const [budgetMax, setBudgetMax] = useState('150');
-
-  useTourTrigger('pinDetail');
 
   useEffect(() => {
     const fetchPin = async () => {
