@@ -31,10 +31,10 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  const publicPaths = ['/', '/login', '/privacy', '/api/auth/callback'];
-  const isPublic = publicPaths.some(
-    (p) => path === p || path.startsWith('/api/auth/') || path.startsWith('/_next/')
-  );
+  const publicPaths = ['/', '/login', '/privacy', '/onboarding'];
+  const isPublic = publicPaths.some((p) => path === p)
+    || path.startsWith('/api/')
+    || path.startsWith('/_next/');
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
